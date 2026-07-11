@@ -48,7 +48,7 @@ export default function Hero() {
         e.preventDefault();
         setErrorMsg('');
         try {
-            const response = await fetch('http://localhost:5001/api/enquiry', {
+            const response = await fetch('https://us-central1-varanasi-yatra.cloudfunctions.net/api/enquiry', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
