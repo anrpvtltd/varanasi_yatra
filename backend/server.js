@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
@@ -7,21 +6,30 @@ require('dotenv').config();
 const app = express();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',') 
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000', 'http://localhost:5001'];
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+    : [
+        'https://varanasi-yatra.vercel.app', 
+        'http://localhost:5173', 
+        'http://localhost:5174', 
+        'http://localhost:5175', 
+        'http://localhost:3000', 
+        'http://localhost:5001'
+      ];
 
-app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
-        return callback(new Error('CORS Policy block: Origin not allowed.'));
-    },
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production')) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+    }
+    next();
+});
 
 app.use(express.json());
 
