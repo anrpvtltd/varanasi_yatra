@@ -22,9 +22,11 @@ HTML receipts triggered automatically on confirmed bookings, highlighting paymen
 
 ### 🌐 4. Customer-Facing Travel Portal
 A premium, responsive, and SEO-optimized customer landing page featuring curated travel packages, interactive destination grids, customer testimonials, and an automated enquiry booking form.
-![Customer Portal Home](./public/screenshots/media__1784456275767.png)
-![Interactive Booking Form](./public/screenshots/media__1784456333097.png)
-![Dynamic Sightseeing Packages](./public/screenshots/media__1784457774200.png)
+![Customer Portal Home](./public/screenshots/media__1784474435582.png)
+![Popular Destinations Nearby](./public/screenshots/media__1784474451757.png)
+![Our Story / Kashi Pilgrimage Narrative](./public/screenshots/media__1784474461787.png)
+![Why Choose Us / Integrity Journeys](./public/screenshots/media__1784474471644.png)
+![Core Principles / Company Values](./public/screenshots/media__1784474479839.png)
 
 ---
 
