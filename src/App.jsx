@@ -90,7 +90,7 @@ export default function App() {
   };
 
   // Check if URL search parameters ask for admin dashboard CRM view
-  const isAdminView = window.location.search.includes('view=admin');
+  const isAdminView = window.location.search.includes('admin') || window.location.hash.includes('admin');
 
   if (isAdminView) {
     return <AdminCRM />;
