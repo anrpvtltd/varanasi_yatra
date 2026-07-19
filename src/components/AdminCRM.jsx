@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
+const getStatusGradient = (status) => {
+    switch (status) {
+        case 'Confirmed': return 'from-emerald-500 to-teal-600';
+        case 'In-Progress': return 'from-blue-500 to-indigo-600';
+        case 'Cancelled': return 'from-rose-500 to-red-600';
+        default: return 'from-amber-400 to-orange-500';
+    }
+};
+
 export default function AdminCRM() {
     const [isAuthenticated, setIsAuthenticated] = useState(() => {
         return sessionStorage.getItem('admin_authenticated') === 'true';
@@ -402,12 +411,15 @@ export default function AdminCRM() {
                     <div className="absolute inset-0" onClick={() => setSelectedLead(null)}></div>
 
                     {/* Drawer Content */}
-                    <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 sm:p-8 overflow-y-auto flex flex-col border-l border-stone-200 relative z-10 transform translate-x-0 transition-transform duration-300">
+                    <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col border-l border-stone-200 relative z-10 transform translate-x-0 transition-transform duration-300">
+                        {/* Header Status Accent Strip */}
+                        <div className={`h-2.5 w-full bg-gradient-to-r ${getStatusGradient(selectedLead.status)}`}></div>
+
                         {/* Drawer Header */}
-                        <div className="flex justify-between items-center pb-4 border-b border-stone-100 mb-6">
+                        <div className="p-6 sm:p-8 pb-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/15">
                             <div>
                                 <h3 className="text-lg font-serif font-bold text-stone-900">👤 Lead Control Center</h3>
-                                <p className="text-xs text-stone-400 uppercase tracking-widest font-semibold mt-1">Updates for {selectedLead.name}</p>
+                                <p className="text-xs text-stone-400 uppercase tracking-widest font-semibold mt-1">Configure Booking Parameters</p>
                             </div>
                             <button 
                                 onClick={() => setSelectedLead(null)} 
@@ -418,9 +430,45 @@ export default function AdminCRM() {
                         </div>
 
                         {/* Drawer Form */}
-                        <form onSubmit={handleSaveChanges} className="space-y-6 flex-1 flex flex-col justify-between">
-                            <div className="space-y-5">
-                                {/* Status select */}
+                        <form onSubmit={handleSaveChanges} className="flex-1 flex flex-col justify-between overflow-hidden">
+                            {/* Scrollable Form Body */}
+                            <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+                                
+                                {/* 👤 Customer Quick Details Card */}
+                                <div className="bg-stone-50 border border-stone-200/60 p-4.5 rounded-2xl space-y-3 shadow-xs">
+                                    <div className="flex items-center justify-between border-b border-stone-200/40 pb-2">
+                                        <span className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">Customer Profile</span>
+                                        {selectedLead.createdAt && (
+                                            <span className="text-[9px] font-bold text-stone-400">
+                                                📅 {new Date(selectedLead.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2.5 text-xs text-stone-600 font-semibold">
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-stone-400">👤</span>
+                                            <span className="text-stone-900 font-bold">{selectedLead.name}</span>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-stone-400">📞</span>
+                                            <a href={`tel:${selectedLead.mobile}`} className="text-amber-600 hover:underline">{selectedLead.mobile}</a>
+                                        </div>
+                                        {selectedLead.email && selectedLead.email !== 'offline-client@banarasyatra.com' && (
+                                            <div className="flex items-center space-x-2">
+                                                <span className="text-stone-400">✉️</span>
+                                                <a href={`mailto:${selectedLead.email}`} className="text-stone-700 hover:underline break-all">{selectedLead.email}</a>
+                                            </div>
+                                        )}
+                                        <div className="flex items-start space-x-2">
+                                            <span className="text-stone-400 mt-0.5">📍</span>
+                                            <span className="text-stone-800 leading-tight">
+                                                {selectedLead.pickup || 'Direct Visit'} • <span className="text-amber-700 font-extrabold">{selectedLead.travelers || '1'} Travelers</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Pipeline status control dropdown */}
                                 <div>
                                     <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Pipeline Status</label>
                                     <select 
@@ -440,36 +488,45 @@ export default function AdminCRM() {
                                 {selectedLead.status === 'Confirmed' && (
                                     <div className="bg-emerald-50/40 p-4.5 rounded-2xl border border-emerald-100 space-y-4">
                                         <div>
-                                            <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1.5">Total Package Cost (INR)</label>
-                                            <input 
-                                                type="number" 
-                                                name="totalAmount" 
-                                                value={selectedLead.totalAmount || ''} 
-                                                onChange={handleInputChange} 
-                                                className="w-full border border-stone-200 focus:border-emerald-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none focus:ring-0" 
-                                                placeholder="Enter total quote amount"
-                                            />
+                                            <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1.5">Total Package Cost</label>
+                                            <div className="relative">
+                                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-500 font-bold text-xs">₹</span>
+                                                <input 
+                                                    type="number" 
+                                                    name="totalAmount" 
+                                                    value={selectedLead.totalAmount || ''} 
+                                                    onChange={handleInputChange} 
+                                                    className="w-full border border-stone-200 focus:border-emerald-500 rounded-xl pl-8 pr-4 py-2.5 bg-white text-stone-900 font-bold focus:outline-none focus:ring-0 text-xs sm:text-sm" 
+                                                    placeholder="Enter total quote amount"
+                                                />
+                                            </div>
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1.5">Advance Token Received (INR)</label>
-                                            <input 
-                                                type="number" 
-                                                name="advanceAmount" 
-                                                value={selectedLead.advanceAmount || ''} 
-                                                onChange={handleInputChange} 
-                                                className="w-full border border-stone-200 focus:border-emerald-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none focus:ring-0" 
-                                                placeholder="Enter advance received"
-                                            />
+                                            <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1.5">Advance Token Received</label>
+                                            <div className="relative">
+                                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-500 font-bold text-xs">₹</span>
+                                                <input 
+                                                    type="number" 
+                                                    name="advanceAmount" 
+                                                    value={selectedLead.advanceAmount || ''} 
+                                                    onChange={handleInputChange} 
+                                                    className="w-full border border-stone-200 focus:border-emerald-500 rounded-xl pl-8 pr-4 py-2.5 bg-white text-stone-900 font-bold focus:outline-none focus:ring-0 text-xs sm:text-sm" 
+                                                    placeholder="Enter advance received"
+                                                />
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Balance Outstanding (Locked 🔒)</label>
-                                            <input 
-                                                type="number" 
-                                                name="remainingAmount" 
-                                                value={selectedLead.remainingAmount || 0} 
-                                                readOnly 
-                                                className="w-full border border-stone-200 rounded-xl p-2.5 bg-stone-100 text-stone-500 font-bold cursor-not-allowed focus:outline-none" 
-                                            />
+                                            <div className="relative">
+                                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 font-bold text-xs">₹</span>
+                                                <input 
+                                                    type="number" 
+                                                    name="remainingAmount" 
+                                                    value={selectedLead.remainingAmount || 0} 
+                                                    readOnly 
+                                                    className="w-full border border-stone-200 rounded-xl pl-8 pr-4 py-2.5 bg-stone-100 text-stone-500 font-extrabold cursor-not-allowed focus:outline-none text-xs sm:text-sm" 
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -483,7 +540,7 @@ export default function AdminCRM() {
                                             name="followUpDate" 
                                             value={selectedLead.followUpDate || ''} 
                                             onChange={handleInputChange} 
-                                            className="w-full border border-stone-200 focus:border-blue-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none" 
+                                            className="w-full border border-stone-200 focus:border-blue-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none text-xs sm:text-sm cursor-pointer" 
                                         />
                                     </div>
                                 )}
@@ -496,7 +553,7 @@ export default function AdminCRM() {
                                             name="cancellationReason" 
                                             value={selectedLead.cancellationReason || ''} 
                                             onChange={handleInputChange} 
-                                            className="w-full border border-stone-200 focus:border-red-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none cursor-pointer"
+                                            className="w-full border border-stone-200 focus:border-red-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none cursor-pointer text-xs sm:text-sm"
                                         >
                                             <option value="">-- Select Reason --</option>
                                             <option value="Budget Issue">💸 Budget Issue</option>
@@ -513,15 +570,15 @@ export default function AdminCRM() {
                                         name="adminNotes" 
                                         value={selectedLead.adminNotes || ''} 
                                         onChange={handleInputChange} 
-                                        rows="4" 
-                                        className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-3 bg-white text-stone-900 font-semibold focus:outline-none transition-all"
-                                        placeholder="Add booking notes, preferences, or call feedback here..."
+                                        rows="5" 
+                                        className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-3.5 bg-white text-stone-900 font-semibold focus:outline-none transition-all text-xs sm:text-sm"
+                                        placeholder="Add booking notes, travel preferences, or call feedback here..."
                                     ></textarea>
                                 </div>
                             </div>
 
-                            {/* Save actions */}
-                            <div className="pt-6 border-t border-stone-100 flex space-x-3.5 mt-8">
+                            {/* Sticky Save actions Footer */}
+                            <div className="p-6 border-t border-stone-100 bg-stone-50/40 flex space-x-3.5">
                                 <button 
                                     type="button" 
                                     onClick={() => setSelectedLead(null)} 
