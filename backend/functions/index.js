@@ -120,7 +120,52 @@ app.post('/api/enquiry', async (req, res) => {
             from: process.env.EMAIL_USER,
             to: process.env.EMAIL_USER,
             subject: `🟡 New Website Inquiry Alert: ${name}`,
-            html: `<div style="font-family: Arial; padding: 20px; border: 1px solid #d97706;"><h2>🚩 New Travel Query Received</h2><p><b>Name:</b> ${name}<br/><b>Mobile:</b> ${mobile}<br/><b>Travel Date:</b> ${date}</p></div>`
+            html: `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1.5px solid #f59e0b; border-radius: 16px; background-color: #fafaf9; color: #1c1917;">
+    <div style="text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 15px; margin-bottom: 20px;">
+        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 BANARAS YATRA</h2>
+        <p style="color: #78716c; margin: 5px 0 0 0; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">New Website Travel Enquiry Received</p>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <p style="font-size: 14px; margin: 0 0 15px 0; color: #44403c;">A new booking/sightseeing query has been submitted through the website form. Details are provided below:</p>
+        
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706; width: 40%;">👤 Customer Name:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${name}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">📞 Mobile Number:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">
+                    <a href="tel:${mobile}" style="color: #d97706; text-decoration: none;">${mobile}</a>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">✉️ Email Address:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">
+                    <a href="mailto:${email}" style="color: #d97706; text-decoration: none;">${email}</a>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">📍 Pickup Point:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${pickup}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">📅 Travel Date:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${date}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">👥 No. of Travelers:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${travelers || '1'}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 25px; border-top: 1px solid #e7e5e4; padding-top: 15px;">
+        <a href="https://varanasi-yatra.vercel.app/?view=admin" style="display: inline-block; background-color: #d97706; color: #ffffff; text-decoration: none; padding: 10px 20px; font-size: 12px; font-weight: bold; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Open Admin CRM Portal ➔</a>
+        <p style="margin: 15px 0 0 0; font-size: 10px; color: #a8a29e;">This is an automated system notification from your website. Do not reply directly to this mail.</p>
+    </div>
+</div>`
         };
         try {
             await transporter.sendMail(adminMail);
