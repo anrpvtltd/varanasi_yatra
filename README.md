@@ -20,6 +20,12 @@ Allows operators to record telephone inquiries, walk-ins, and WhatsApp bookings.
 HTML receipts triggered automatically on confirmed bookings, highlighting payment status, travel date, pickup point, and due payments in an easy-to-read, formatted format.
 ![Receipt Mockup](./public/screenshots/media__1784457761923.png)
 
+### 🌐 4. Customer-Facing Travel Portal
+A premium, responsive, and SEO-optimized customer landing page featuring curated travel packages, interactive destination grids, customer testimonials, and an automated enquiry booking form.
+![Customer Portal Home](./public/screenshots/media__1784456275767.png)
+![Interactive Booking Form](./public/screenshots/media__1784456333097.png)
+![Dynamic Sightseeing Packages](./public/screenshots/media__1784457774200.png)
+
 ---
 
 ## 🚀 Key Features
