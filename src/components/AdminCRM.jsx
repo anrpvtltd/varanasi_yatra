@@ -227,29 +227,32 @@ export default function AdminCRM() {
     }
 
     return (
-        <div className="min-h-screen bg-[#faf9f6] p-4 sm:p-8 text-stone-800 text-left">
+        <div className="min-h-screen bg-slate-50/60 p-4 sm:p-8 text-slate-700 text-left font-sans antialiased">
             {/* Header section */}
-            <div className="bg-gradient-to-r from-stone-950 via-stone-900 to-stone-950 text-white p-6 sm:p-8 rounded-[28px] shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border border-stone-800/80 relative overflow-hidden select-none">
+            <div className="bg-white border border-slate-200/80 p-6 sm:p-8 rounded-2xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="space-y-1.5 z-10">
-                    <div className="flex items-center space-x-2">
+                <div className="space-y-1 z-10">
+                    <div className="flex items-center space-x-2.5">
                         <span className="text-xl">🚩</span>
-                        <h1 className="text-2xl font-serif font-bold tracking-wider text-amber-100">Banaras Yatra Operations</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Banaras Yatra Operations</h1>
                     </div>
-                    <p className="text-[10px] sm:text-xs text-stone-400 uppercase tracking-widest font-semibold">Real-time Lead Inquiries & Booking Pipeline Dashboard</p>
+                    <p className="text-xs text-slate-400 font-medium">Real-time Lead Inquiries & Booking Pipeline Dashboard</p>
                 </div>
                 <div className="mt-4 sm:mt-0 z-10 flex flex-wrap gap-3">
                     <button 
                         onClick={() => setIsManualOpen(true)}
-                        className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 rounded-xl text-xs font-serif font-bold uppercase tracking-widest transition-all duration-300 cursor-pointer shadow-md"
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg text-xs sm:text-sm px-4.5 py-2.5 transition duration-200 cursor-pointer shadow-sm shadow-amber-600/10 flex items-center space-x-1.5"
                     >
-                        ➕ Add Manual Lead
+                        <span>➕</span>
+                        <span>Add Manual Lead</span>
                     </button>
                     <button 
                         onClick={fetchLeads} 
-                        className="flex items-center space-x-2 bg-stone-900/80 hover:bg-amber-600/10 border border-stone-800 hover:border-amber-500/40 text-amber-400 hover:text-white px-5 py-3 rounded-xl text-xs font-serif font-bold uppercase tracking-widest transition-all duration-300 cursor-pointer shadow-md"
+                        className="flex items-center space-x-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium rounded-lg text-xs sm:text-sm px-4.5 py-2.5 transition duration-200 cursor-pointer shadow-sm"
                     >
-                        <span>🔄</span>
+                        <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
                         <span>Sync Data</span>
                     </button>
                 </div>
@@ -260,96 +263,116 @@ export default function AdminCRM() {
                 {/* Total Leads */}
                 <div 
                     onClick={() => setStatusFilter('All')}
-                    className={`bg-white p-4.5 rounded-2xl border transition-all duration-300 cursor-pointer select-none transform hover:-translate-y-0.5 ${
+                    className={`bg-white p-5 rounded-xl border transition-all duration-200 cursor-pointer select-none transform hover:-translate-y-0.5 ${
                         statusFilter === 'All' 
-                            ? 'border-stone-800 shadow-md ring-1 ring-stone-900/5 bg-stone-50/50' 
-                            : 'border-stone-200/80 hover:border-stone-400 shadow-xs'
+                            ? 'border-slate-800 shadow-sm ring-1 ring-slate-900/5 bg-slate-50/20' 
+                            : 'border-slate-200/80 hover:border-slate-300 shadow-xs'
                     }`}
                 >
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-stone-400">Total Leads</p>
-                    <p className="text-3xl font-serif font-bold text-stone-900 mt-1">{totalLeads}</p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Total Leads</p>
+                        <span className="text-slate-400">📊</span>
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mt-2">{totalLeads}</p>
                 </div>
 
                 {/* Pending */}
                 <div 
                     onClick={() => setStatusFilter('Pending')}
-                    className={`bg-white p-4.5 rounded-2xl border transition-all duration-300 cursor-pointer select-none transform hover:-translate-y-0.5 ${
+                    className={`bg-white p-5 rounded-xl border transition-all duration-200 cursor-pointer select-none transform hover:-translate-y-0.5 ${
                         statusFilter === 'Pending' 
-                            ? 'border-amber-500 shadow-md ring-1 ring-amber-500/10 bg-amber-50/10' 
-                            : 'border-stone-200/80 hover:border-amber-300 shadow-xs'
+                            ? 'border-amber-500 shadow-sm ring-1 ring-amber-500/10 bg-amber-50/10' 
+                            : 'border-slate-200/80 hover:border-amber-300 shadow-xs'
                     }`}
                 >
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-amber-600">🟡 Pending</p>
-                    <p className="text-3xl font-serif font-bold text-stone-900 mt-1">{pendingLeads}</p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-amber-600">🟡 Pending</p>
+                        <span className="text-amber-400">⏳</span>
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mt-2">{pendingLeads}</p>
                 </div>
 
                 {/* In-Progress */}
                 <div 
                     onClick={() => setStatusFilter('In-Progress')}
-                    className={`bg-white p-4.5 rounded-2xl border transition-all duration-300 cursor-pointer select-none transform hover:-translate-y-0.5 ${
+                    className={`bg-white p-5 rounded-xl border transition-all duration-200 cursor-pointer select-none transform hover:-translate-y-0.5 ${
                         statusFilter === 'In-Progress' 
-                            ? 'border-blue-500 shadow-md ring-1 ring-blue-500/10 bg-blue-50/10' 
-                            : 'border-stone-200/80 hover:border-blue-300 shadow-xs'
+                            ? 'border-blue-500 shadow-sm ring-1 ring-blue-500/10 bg-blue-50/10' 
+                            : 'border-slate-200/80 hover:border-blue-300 shadow-xs'
                     }`}
                 >
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-blue-600">🔵 In-Progress</p>
-                    <p className="text-3xl font-serif font-bold text-stone-900 mt-1">{inProgressLeads}</p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-blue-600">🔵 In-Progress</p>
+                        <span className="text-blue-400">📞</span>
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mt-2">{inProgressLeads}</p>
                 </div>
 
                 {/* Confirmed */}
                 <div 
                     onClick={() => setStatusFilter('Confirmed')}
-                    className={`bg-white p-4.5 rounded-2xl border transition-all duration-300 cursor-pointer select-none transform hover:-translate-y-0.5 ${
+                    className={`bg-white p-5 rounded-xl border transition-all duration-200 cursor-pointer select-none transform hover:-translate-y-0.5 ${
                         statusFilter === 'Confirmed' 
-                            ? 'border-green-600 shadow-md ring-1 ring-green-600/10 bg-green-50/10' 
-                            : 'border-stone-200/80 hover:border-green-300 shadow-xs'
+                            ? 'border-emerald-600 shadow-sm ring-1 ring-emerald-600/10 bg-emerald-50/10' 
+                            : 'border-slate-200/80 hover:border-emerald-300 shadow-xs'
                     }`}
                 >
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-green-600">🟢 Confirmed</p>
-                    <p className="text-3xl font-serif font-bold text-stone-900 mt-1">{confirmedLeads}</p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">🟢 Confirmed</p>
+                        <span className="text-emerald-500">✅</span>
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mt-2">{confirmedLeads}</p>
                 </div>
 
                 {/* Cancelled */}
                 <div 
                     onClick={() => setStatusFilter('Cancelled')}
-                    className={`bg-white p-4.5 rounded-2xl border transition-all duration-300 cursor-pointer select-none transform hover:-translate-y-0.5 ${
+                    className={`bg-white p-5 rounded-xl border transition-all duration-200 cursor-pointer select-none transform hover:-translate-y-0.5 ${
                         statusFilter === 'Cancelled' 
-                            ? 'border-red-500 shadow-md ring-1 ring-red-500/10 bg-red-50/10' 
-                            : 'border-stone-200/80 hover:border-red-300 shadow-xs'
+                            ? 'border-red-500 shadow-sm ring-1 ring-red-500/10 bg-red-50/10' 
+                            : 'border-slate-200/80 hover:border-red-300 shadow-xs'
                     }`}
                 >
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-red-600">🔴 Cancelled</p>
-                    <p className="text-3xl font-serif font-bold text-stone-900 mt-1">{cancelledLeads}</p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-red-600">🔴 Cancelled</p>
+                        <span className="text-red-400">❌</span>
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mt-2">{cancelledLeads}</p>
                 </div>
 
                 {/* Cash In-Hand */}
-                <div className="bg-emerald-50/50 p-4.5 rounded-2xl border border-emerald-100 shadow-xs">
+                <div className="bg-emerald-50/40 p-5 rounded-xl border border-emerald-100 shadow-xs">
                     <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">💰 Cash In-Hand</p>
-                    <p className="text-3xl font-serif font-bold text-emerald-800 mt-1">₹{totalCashInHand}</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-emerald-800 tracking-tight mt-2">₹{totalCashInHand}</p>
                 </div>
 
                 {/* Outstanding */}
-                <div className="bg-rose-50/50 p-4.5 rounded-2xl border border-rose-100 shadow-xs">
+                <div className="bg-rose-50/40 p-5 rounded-xl border border-rose-100 shadow-xs">
                     <p className="text-[10px] uppercase tracking-wider font-bold text-rose-700">⏳ Outstanding</p>
-                    <p className="text-3xl font-serif font-bold text-rose-800 mt-1">₹{totalOutstanding}</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-rose-800 tracking-tight mt-2">₹{totalOutstanding}</p>
                 </div>
             </div>
 
             {/* Filter and Search Action bar */}
-            <div className="bg-white border border-stone-200/80 rounded-2xl p-4.5 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xs">
+            <div className="bg-white border border-slate-200/80 rounded-xl p-4.5 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xs">
                 {/* Search query box */}
-                <div className="w-full md:max-w-md relative">
+                <div className="w-full md:max-w-xl relative">
+                    <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
                     <input 
                         type="text" 
-                        placeholder="🔍 Search name, mobile, email or pickup point..."
+                        placeholder="Search by customer name, mobile, email or pickup location..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500/60 focus:bg-white transition-all text-stone-800 placeholder-stone-400"
+                        className="w-full pl-10 pr-9 py-2.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-500/10 transition-all text-slate-800 placeholder-slate-400"
                     />
                     {searchQuery && (
                         <button 
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs font-bold"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-base font-bold cursor-pointer"
                         >
                             &times;
                         </button>
@@ -358,13 +381,13 @@ export default function AdminCRM() {
 
                 {/* Filter and reset helpers */}
                 <div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-3.5">
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-stone-400">
-                        Showing: <span className="text-stone-800 font-extrabold">{statusFilter}</span> ({filteredLeads.length})
+                    <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                        Showing: <span className="text-slate-800 font-extrabold">{statusFilter}</span> ({filteredLeads.length})
                     </span>
                     {(statusFilter !== 'All' || searchQuery) && (
                         <button 
                             onClick={() => { setStatusFilter('All'); setSearchQuery(''); }}
-                            className="text-[10px] uppercase tracking-wider font-bold text-amber-600 hover:text-amber-800 px-3.5 py-2 bg-amber-50 rounded-xl transition cursor-pointer"
+                            className="text-[10px] uppercase tracking-wider font-bold text-amber-600 hover:text-amber-800 px-3.5 py-2 bg-amber-50/60 rounded-lg transition cursor-pointer"
                         >
                             Reset Filters
                         </button>
@@ -373,25 +396,25 @@ export default function AdminCRM() {
             </div>
 
             {/* Leads grid table container */}
-            <div className="bg-white border border-stone-200/80 rounded-3xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
                 {loading ? (
                     <div className="p-20 text-center space-y-4">
                         <div className="w-8 h-8 border-4 border-amber-600/30 border-t-amber-600 rounded-full animate-spin mx-auto"></div>
-                        <p className="text-xs uppercase tracking-widest font-serif font-bold text-stone-400 animate-pulse">Loading Grid Records...</p>
+                        <p className="text-xs uppercase tracking-widest font-bold text-slate-400 animate-pulse">Loading Grid Records...</p>
                     </div>
                 ) : error ? (
-                    <div className="p-20 text-center text-red-500 text-sm font-semibold select-none">
+                    <div className="p-20 text-center text-rose-500 text-sm font-semibold select-none">
                         ⚠️ {error}
                     </div>
                 ) : filteredLeads.length === 0 ? (
-                    <div className="p-20 text-center text-stone-400 text-xs font-medium leading-relaxed select-none">
+                    <div className="p-20 text-center text-slate-400 text-xs font-medium leading-relaxed select-none">
                         📭 No enquiries match your active filter/search query.
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                    <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                        <table className="w-full text-left border-collapse relative">
                             <thead>
-                                <tr className="bg-stone-50 border-b border-stone-100 text-stone-500 uppercase text-[10px] font-bold tracking-widest select-none">
+                                <tr className="bg-slate-50 border-b border-slate-200/85 text-slate-400 uppercase text-[10px] font-bold tracking-widest select-none sticky top-0 bg-opacity-95 backdrop-blur-xs z-10">
                                     <th className="p-5">Customer Details</th>
                                     <th className="p-5">Travel Plan</th>
                                     <th className="p-5">Pipeline Status</th>
@@ -399,58 +422,85 @@ export default function AdminCRM() {
                                     <th className="p-5 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-stone-100 text-xs sm:text-sm">
+                            <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
                                 {filteredLeads.map((lead) => (
-                                    <tr key={lead._id} className="hover:bg-stone-50/50 transition duration-150">
+                                    <tr key={lead._id} className="hover:bg-slate-50/40 even:bg-slate-50/10 transition duration-150">
                                         
                                         {/* Customer Details */}
-                                        <td className="p-5">
-                                            <div className="font-serif font-bold text-stone-900 text-base">{lead.name}</div>
+                                        <td className="p-5 space-y-1.5">
+                                            <div className="font-semibold text-slate-900 text-base">{lead.name}</div>
                                             
-                                            {/* Clickable Quick Actions */}
-                                            <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 mt-1.5 text-xs text-stone-500 font-medium">
-                                                {/* Call link */}
-                                                <a href={`tel:${lead.mobile}`} className="hover:text-amber-600 flex items-center space-x-1 transition">
-                                                    <span>📞</span>
-                                                    <span className="hover:underline">{lead.mobile}</span>
-                                                </a>
-                                                
-                                                {/* Email link */}
-                                                {lead.email && lead.email !== 'offline-client@banarasyatra.com' && (
-                                                    <a href={`mailto:${lead.email}`} className="hover:text-amber-600 flex items-center space-x-1 transition">
-                                                        <span>✉️</span>
-                                                        <span className="hover:underline">{lead.email}</span>
-                                                    </a>
-                                                )}
+                                            <div className="space-y-1">
+                                                {/* Phone Number */}
+                                                <div className="flex items-center space-x-1.5 text-slate-500 text-xs font-medium">
+                                                    <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.302a12.01 12.01 0 01-5.3-5.3c-.44-.441-.274-.927.102-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                                                    </svg>
+                                                    <a href={`tel:${lead.mobile}`} className="hover:text-amber-600 hover:underline">{lead.mobile}</a>
+                                                </div>
 
-                                                {/* WhatsApp quick chat link */}
+                                                {/* Email Address */}
+                                                {lead.email && lead.email !== 'offline-client@banarasyatra.com' && (
+                                                    <div className="flex items-center space-x-1.5 text-slate-500 text-xs font-medium">
+                                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                                                        </svg>
+                                                        <a href={`mailto:${lead.email}`} className="hover:text-amber-600 hover:underline">{lead.email}</a>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Chat Button */}
+                                            <div className="pt-0.5">
                                                 <a 
                                                     href={`https://wa.me/91${lead.mobile.replace(/\D/g, '')}`} 
                                                     target="_blank" 
                                                     rel="noreferrer"
-                                                    className="hover:text-emerald-600 flex items-center space-x-1 text-emerald-600/90 transition font-bold"
+                                                    className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/50 text-emerald-700 font-semibold px-2.5 py-1 rounded-md text-[11px] transition-all"
                                                 >
-                                                    <span>💬</span>
-                                                    <span>Chat</span>
+                                                    <svg className="w-3 h-3 text-emerald-600 fill-current" viewBox="0 0 24 24">
+                                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-4.846c1.6.95 3.488 1.449 5.412 1.451 5.428 0 9.845-4.414 9.848-9.847.002-2.632-1.023-5.105-2.887-6.97C17.152 1.922 14.68 .898 12.01 .898c-5.43 0-9.847 4.414-9.85 9.849-.001 1.932.501 3.815 1.455 5.421L2.642 22.28l6.005-1.574zM17.92 14.87c-.318-.16-1.877-.926-2.162-1.03-.285-.104-.493-.155-.7.156-.207.31-.8.926-.98 1.132-.18.207-.36.233-.678.074-1.69-.844-2.8-1.522-3.922-3.447-.297-.51.297-.474.85-1.583.093-.187.047-.35-.023-.454-.07-.104-.7-1.682-.958-2.306-.252-.603-.509-.522-.7-.522-.181-.001-.389-.001-.597-.001-.207 0-.544.078-.83.392-.285.31-1.088 1.065-1.088 2.597 0 1.532 1.114 3.013 1.27 3.22.155.207 2.193 3.349 5.313 4.699.742.32 1.322.512 1.774.656.745.237 1.423.204 1.959.124.598-.09 1.877-.767 2.137-1.474.26-.707.26-1.316.182-1.443-.078-.127-.285-.207-.604-.367z" />
+                                                    </svg>
+                                                    <span>WhatsApp Chat</span>
                                                 </a>
                                             </div>
                                         </td>
 
                                         {/* Travel Plan details */}
-                                        <td className="p-5">
-                                            <div className="font-bold text-stone-800">{lead.date || 'Flexible Date'}</div>
-                                            <div className="text-stone-400 text-xs mt-1 font-semibold uppercase tracking-wider">
-                                                📍 {lead.pickup || 'Custom Pickup'} • 👤 {lead.travelers || '1'} Travelers
+                                        <td className="p-5 space-y-1.5">
+                                            {/* Travel Date */}
+                                            <div className="flex items-center space-x-1.5 font-semibold text-slate-800">
+                                                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                                                </svg>
+                                                <span>{lead.date || 'Flexible Date'}</span>
+                                            </div>
+
+                                            {/* Pickup Point */}
+                                            <div className="flex items-center space-x-1.5 text-slate-500 text-xs font-medium">
+                                                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                                                </svg>
+                                                <span>📍 {lead.pickup || 'Custom Pickup'}</span>
+                                            </div>
+
+                                            {/* Number of Travelers */}
+                                            <div className="flex items-center space-x-1.5 text-slate-500 text-xs font-medium">
+                                                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94-3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                                                </svg>
+                                                <span>👤 {lead.travelers || '1'} Travelers</span>
                                             </div>
                                         </td>
 
                                         {/* Pipeline Status */}
                                         <td className="p-5">
-                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-extrabold select-none ${
-                                                lead.status === 'Confirmed' ? 'bg-green-50 text-green-700 border border-green-200/50' :
-                                                lead.status === 'In-Progress' ? 'bg-blue-50 text-blue-700 border border-blue-200/50' :
-                                                lead.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-200/50' : 
-                                                'bg-amber-50 text-amber-700 border border-amber-200/50'
+                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold transition-all duration-150 hover:scale-105 select-none cursor-pointer ${
+                                                lead.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-xs' :
+                                                lead.status === 'In-Progress' ? 'bg-blue-50 text-blue-700 border border-blue-200/60 shadow-xs' :
+                                                lead.status === 'Cancelled' ? 'bg-rose-50/80 text-rose-700 border border-rose-200/60 shadow-xs' : 
+                                                'bg-amber-50 text-amber-700 border border-amber-200/60 shadow-xs'
                                             }`}>
                                                 {lead.status === 'Confirmed' ? '🟢 Confirmed' :
                                                  lead.status === 'In-Progress' ? '🔵 In-Progress' :
@@ -459,17 +509,28 @@ export default function AdminCRM() {
                                         </td>
 
                                         {/* Financial records */}
-                                        <td className="p-5 text-xs font-semibold text-stone-500 space-y-0.5">
-                                            <div>Total Package: <span className="font-bold text-stone-900">₹{lead.totalAmount || 0}</span></div>
-                                            <div>Advance Token: <span className="font-bold text-emerald-600">₹{lead.advanceAmount || 0}</span></div>
-                                            <div>Balance Due: <span className={`font-extrabold ${lead.remainingAmount > 0 ? 'text-rose-600' : 'text-stone-400'}`}>₹{lead.remainingAmount || 0}</span></div>
+                                        <td className="p-5 space-y-1 select-none">
+                                            <div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Package Value</span>
+                                                <span className="text-sm font-bold text-slate-900">₹{lead.totalAmount || 0}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[11px] text-slate-500 font-medium">
+                                                <span>Paid: <span className="font-bold text-slate-700">₹{lead.advanceAmount || 0}</span></span>
+                                                <span className={`px-1.5 py-0.5 rounded-md border font-bold ${
+                                                    lead.remainingAmount > 0 
+                                                        ? 'bg-rose-50 text-rose-700 border-rose-100/80' 
+                                                        : 'bg-slate-50 text-slate-500 border-slate-200/60'
+                                                }`}>
+                                                    Due: ₹{lead.remainingAmount || 0}
+                                                </span>
+                                            </div>
                                         </td>
 
                                         {/* Main Row CTA action */}
                                         <td className="p-5 text-right">
                                             <button 
                                                 onClick={() => setSelectedLead(lead)} 
-                                                className="bg-stone-900 hover:bg-amber-600 text-white hover:text-white px-4 py-2.5 rounded-xl text-xs font-serif font-bold uppercase tracking-widest transition duration-200 cursor-pointer shadow-xs"
+                                                className="bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200 hover:border-slate-300 text-slate-700 px-3.5 py-2.5 rounded-lg text-xs font-semibold shadow-xs transition duration-200 cursor-pointer"
                                             >
                                                 Open Profile
                                             </button>
