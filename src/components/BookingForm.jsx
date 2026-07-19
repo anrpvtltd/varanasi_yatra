@@ -89,11 +89,6 @@ export default function BookingForm({ containerClassName = '' }) {
             if (response.ok && data.success) {
                 setSubmitted(true);
                 setFormData({ name: '', mobile: '', email: '', pickup: '', date: '', travelers: '1' });
-                
-                const waMessage = `Hi Banaras Yatra, I have submitted my enquiry for a spiritual tour. Details:\n- Name: ${trimmedName}\n- Date: ${trimmedDate}\n- Travelers: ${travelersVal}\n\nPlease share the custom itinerary.`;
-                const waUrl = `https://wa.me/918149783494?text=${encodeURIComponent(waMessage)}`;
-                
-                window.open(waUrl, '_blank');
                 setTimeout(() => setSubmitted(false), 9000);
             } else {
                 setErrorMsg(data.message || 'Something went wrong. Please try again.');
