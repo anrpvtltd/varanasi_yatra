@@ -1,27 +1,44 @@
-# Banaras Yatra 🚩
+# Banaras Yatra Operations 🚩 (v1.0.0 Release)
 
-A premium, SEO-optimized spiritual tourism and travel agency portal designed for **Banaras Yatra**, a local startup coordinating customized pilgrimages and cab services across Varanasi, Ayodhya, Bodh Gaya, Chunar, Mirzapur, and Nepal.
+A premium, commercial-grade travel CRM and customer portal designed for **Banaras Yatra**, a travel agency specializing in customized pilgrimages and sightseeing tours across Varanasi, Ayodhya, Bodh Gaya, Chunar, Mirzapur, and Nepal.
+
+This repository hosts both the SEO-optimized customer portal and the unified **Banaras Yatra Operations** SaaS-style CRM.
+
+---
+
+## 📸 Visual Showcases & Screenshots
+
+### 🖥️ 1. SaaS Admin CRM Dashboard (Version 1.0)
+A premium, Stripe-inspired operations control center containing real-time analytics, dynamic status metric filters, a fast search bar, interactive customer actions (call, email, quick WhatsApp chat), and inline profile editing.
+![SaaS CRM Dashboard Overview](./public/screenshots/media__1784470115168.png)
+
+### ➕ 2. Offline Manual Booking Entry Drawer
+Allows operators to record telephone inquiries, walk-ins, and WhatsApp bookings. Features custom datepickers, passenger counts, and automatic outstanding balance calculations (Package Cost - Advance Paid) if the status is set to *Confirmed*.
+![Add Manual Lead Drawer](./public/screenshots/media__1784469488027.png)
+
+### ✉️ 3. Premium Customer Confirmation Receipts
+HTML receipts triggered automatically on confirmed bookings, highlighting payment status, travel date, pickup point, and due payments in an easy-to-read, formatted format.
+![Receipt Mockup](./public/screenshots/media__1784457761923.png)
 
 ---
 
 ## 🚀 Key Features
 
-*   **World-Class Varanasi Destination Page:** A comprehensive sightseeing guide detailing 10 key attractions, 1-day sample timelines, food & shopping guides, travel guidelines, and 20 detailed FAQs.
-*   **Scalable Routing & Layouts:** Built with `react-router-dom` to support dynamic multi-page hierarchies (`/destinations/:id`, `/packages/:id`) while preserving the custom home landing design.
-*   **React 19 Native SEO Hoisting:** Dynamically updates page titles, canonical URLs, meta descriptions, Open Graph parameters, and JSON-LD structured schemas (`BreadcrumbList` & `TouristTrip` data).
-*   **Reusable Component Design:** Includes custom loading skeletons (`ImageWithSkeleton.jsx`), modal package drawers (`Packages.jsx`), and a reusable secure leads collector (`BookingForm.jsx`).
-*   **Conversion Rate Optimized (CRO):** Form validations scroll automatically to errors, trigger auto-redirection to WhatsApp with pre-filled itineraries, and render multi-line feedback alerts.
-*   **Admin CRM Dashboard:** Toggled via a secret portal parameter (`?view=admin`) using passcode verification (`1234` by default) to let coordinators trace, update, log notes, and log transaction balances (total, advance, remaining).
-*   **Static Search Indexes:** Equipped with `sitemap.xml`, `robots.txt`, and HTML fallback pages (`404.html`, `500.html`) to maximize crawlability.
-*   **0-Warning Codebase:** Audited completely through `oxlint` to enforce standard React hooks dependencies and code cleanups.
+*   **World-Class Varanasi Destination Page:** Detailed sightseeing guide of 10 primary attractions, sample timelines, local food guides, shopping coordinates, and 20 detailed tourist FAQs.
+*   **Unified CRM & Pipeline Manager:** auth-guarded via passcode verification (`1234` by default) to let operators monitor total, pending, in-progress, confirmed, and cancelled bookings.
+*   **CRO Optimized Forms:** Pre-fills WhatsApp API message intents, handles automated field validations, and returns responsive, formatted customer notices.
+*   **Automated Email Notifications:** NodeMailer integration on local & serverless endpoints that dispatches high-quality, formatted alert emails to admin on new bookings, and confirmation receipts to customers.
+*   **Security & Compliance:** Custom rate-limiters (`express-rate-limit`) implemented on sensitive endpoints (PIN verification, booking creations) to prevent spam.
+*   **React 19 Native SEO Hoisting:** Updates title headers, canonical links, and schemas (`TouristTrip` and `BreadcrumbList` JSON-LD data) for crawl optimization.
+*   **Clean and Robust Codebase:** Fully audited via `oxlint` with zero warnings or errors.
 
 ---
 
 ## 🛠️ Technology Stack
 
-*   **Frontend:** React 19, Vite, React Router 6, Tailwind CSS/PostCSS
-*   **Backend Server:** Node.js, Express, Cors
-*   **Cloud Stack:** Firebase Functions (Serverless endpoints), Firebase Firestore (NoSQL database)
+- **Frontend Framework:** React 19, Vite, React Router v6, Tailwind CSS
+- **Local Runner:** Node.js, Express.js
+- **Production Infrastructure:** Firebase Cloud Functions (Gen 2 Node.js 22), Firebase Hosting (Vite builds), MongoDB Atlas (Cloud Database)
 
 ---
 
@@ -29,26 +46,23 @@ A premium, SEO-optimized spiritual tourism and travel agency portal designed for
 
 ```bash
 ├── backend/
-│   ├── functions/             # Firebase Cloud Functions entry
-│   │   ├── index.js           # Serverless API routes
+│   ├── functions/             # Firebase Cloud Functions (Production backend)
+│   │   ├── index.js           # Serverless API routes & rate limiters
 │   │   └── package.json
 │   ├── server.js              # Local Express development server
-│   └── database.json          # Local file-based mock database fallback
+│   └── .env                   # Environment credentials
 ├── public/
-│   ├── 404.html               # Fallback error page
-│   ├── sitemap.xml            # Dynamic search routing sitemap
-│   ├── robots.txt             # Crawler allowance guidelines
-│   └── *.html                 # Static legal policy frames (privacy, terms, refund)
+│   ├── screenshots/           # Release screenshots
+│   ├── sitemap.xml            # Dynamic SEO sitemap
+│   └── robots.txt             # Search crawler directives
 └── src/
-    ├── assets/                # Local landscape and branding images
+    ├── assets/                # Local landscape and branding media
     ├── components/
-    │   ├── SEO.jsx            # React 19 Document Metadata Hoister
-    │   ├── BookingForm.jsx    # Secure CRO lead submission form
-    │   ├── AboutUs.jsx        # Local-focused startup narrative block
-    │   ├── VaranasiDestination.jsx # World-class Varanasi sightseeing resource
-    │   ├── AdminCRM.jsx       # Auth-guarded transaction manager portal
-    │   └── ImageWithSkeleton.jsx # Shimmer lazy-loading layout
-    ├── App.jsx                # Layout Shell & React Router routes mapping
+    │   ├── SEO.jsx            # Dynamic metadata injector
+    │   ├── BookingForm.jsx    # Secure leads capture form
+    │   ├── VaranasiDestination.jsx # Interactive Varanasi itinerary planner
+    │   └── AdminCRM.jsx       # Auth-guarded transaction control center
+    ├── App.jsx                # Layout routes configuration
     └── main.jsx
 ```
 
@@ -56,28 +70,27 @@ A premium, SEO-optimized spiritual tourism and travel agency portal designed for
 
 ## 💻 Local Development Setup
 
-### 1. Backend Engine
-Run the local database and API server:
+### 1. Backend API Server
+Navigate to the backend directory, install packages, and boot the server:
 ```bash
 cd backend
 npm install
 node server.js
 ```
-The server will run on `http://localhost:5001`.
+*API will listen at `http://localhost:5001`.*
 
-### 2. Frontend Portal
-Run the React development server:
+### 2. Frontend Development Server
+From the root workspace folder, boot the Vite client:
 ```bash
-# In the root directory
 npm install
 npm run dev
 ```
-Open `http://localhost:5173` to explore. To test the CRM admin dashboard, access `http://localhost:5173/?view=admin`.
+*Vite client will listen at `http://localhost:5173`. Access `http://localhost:5173/?view=admin` to open the Operations CRM.*
 
 ---
 
 ## 📦 Production Bundling & Linting
-Run code audits and compile optimized client assets:
+Enforce code quality standards and generate optimized client assets:
 ```bash
 # Code linter check
 npm run lint
@@ -85,4 +98,4 @@ npm run lint
 # Production compiler build
 npm run build
 ```
-Compiled assets will generate inside `/dist`.
+Optimized assets will output inside `/dist`, ready for direct deployment.
