@@ -5,137 +5,248 @@ const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-const Enquiry = require('./models/Enquiry'); // Model Connect Kiya
-
 const app = express();
 
-// 🌐 CORS Fix: origin true karne se Vercel frontend bina kisi dikkat ke connect ho jayega
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',') 
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000', 'http://localhost:5001'];
+
 app.use(cors({
-    origin: true,
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type']
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        return callback(new Error('CORS Policy block: Origin not allowed.'));
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 
 app.use(express.json());
 
-// 🟢 MongoDB Database Se Connection Setup
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("🟢 Cloud Database (MongoDB) Connected Successfully!"))
-    .catch((err) => console.error("❌ Database Connection Error:", err));
+// =========================================================================
+// 🗂️ 4 SEPARATE CUSTOMIZED COLLECTIONS SCHEMA
+// =========================================================================
+const baseSchemaFields = {
+    name: { type: String, required: true },
+    mobile: { type: String, required: true },
+    email: { type: String, default: 'offline-client@banarasyatra.com' },
+    pickup: { type: String, default: 'Direct Booking' },
+    date: { type: String },
+    travelers: { type: String, default: '1' },
+    status: { type: String, default: 'Pending' },
+    totalAmount: { type: Number, default: 0 },
+    advanceAmount: { type: Number, default: 0 },
+    remainingAmount: { type: Number, default: 0 },
+    cancellationReason: { type: String },
+    followUpDate: { type: String },
+    adminNotes: { type: String }
+};
 
-// 📧 Mail Sender Configuration
+const EnquirySchema = new mongoose.Schema(baseSchemaFields, { timestamps: true });
+
+// Mapping models to 4 distinct MongoDB folders
+const Enquiry = mongoose.model('Enquiry', EnquirySchema, 'enquiries');
+const InProgressBooking = mongoose.model('InProgressBooking', EnquirySchema, 'inprogress_bookings');
+const ConfirmedBooking = mongoose.model('ConfirmedBooking', EnquirySchema, 'confirmed_bookings');
+const CancelledBooking = mongoose.model('CancelledBooking', EnquirySchema, 'cancelled_bookings');
+
+const modelsMap = {
+    'Pending': Enquiry,
+    'In-Progress': InProgressBooking,
+    'Confirmed': ConfirmedBooking,
+    'Cancelled': CancelledBooking
+};
+
+// 🟢 DATABASE CONNECTION
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("🟢 Cloud Engine: MongoDB Active"))
+    .catch((err) => console.error("❌ Database Error:", err));
+
+// 📧 EMAIL ENGINE CONFIGURATION
 const transporter = nodemailer.createTransport({
     service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+});
+
+// Helper to look up documents across collections dynamically
+async function findLeadAcrossCollections(id) {
+    for (const model of Object.values(modelsMap)) {
+        const doc = await model.findById(id);
+        if (doc) return { doc, currentModel: model };
+    }
+    return null;
+}
+
+// =========================================================================
+// 🌐 API ROUTES (CLEAN & OPTIMIZED)
+// =========================================================================
+
+app.post('/admin/verify-pin', (req, res) => {
+    try {
+        const { pin } = req.body;
+        const SECRET_PIN = process.env.ADMIN_PIN || "1234";
+        if (pin === SECRET_PIN) {
+            return res.status(200).json({ success: true, message: "PIN verified successfully!" });
+        }
+        return res.status(401).json({ success: false, message: "Invalid access PIN." });
+    } catch {
+        return res.status(500).json({ success: false, message: "Server authentication error." });
     }
 });
 
-// 📥 Customer Lead Input API Endpoint
-app.post('/enquiry', async (req, res) => {
+// 📥 1. Website Form Submission Channel
+app.post('/api/enquiry', async (req, res) => {
     try {
         const { name, mobile, email, pickup, date, travelers } = req.body;
-
         if (!name || !mobile || !email || !pickup || !date) {
-            return res.status(400).json({ success: false, message: "Please fill all required fields properly." });
+            return res.status(400).json({ success: false, message: "Required fields missing." });
         }
 
-        const newEnquiry = new Enquiry({ name, mobile, email, pickup, date, travelers });
-        await newEnquiry.save();
-        console.log(`💾 Lead for client "${name}" successfully locked in Database.`);
+        const newLead = new Enquiry({ name, mobile, email, pickup, date, travelers, status: 'Pending' });
+        await newLead.save();
 
-        // 🌟 Naya Sundar HTML Email Template Jo Aapki Photo Se Inspired Hai
-        const mailOptions = {
+        const adminMail = {
             from: process.env.EMAIL_USER,
             to: process.env.EMAIL_USER,
-            subject: `🚩 Banaras Yatra — Confirmed Customer Details (${name})`,
-            html: `
-            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #ebdccb; border-radius: 12px; overflow: hidden; background-color: #fdfbfc; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-              
-              <!-- Premium Header Banner -->
-              <div style="background-color: #7d3c16; padding: 25px 20px; text-align: center; color: white;">
-                <h1 style="margin: 0; font-size: 22px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase;">BANARAS YATRA — CONFIRMED CUSTOMER DETAILS</h1>
-                <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.85; letter-spacing: 0.5px;">New Travel Inquiry Received</p>
-              </div>
-
-              <!-- Greeting Message -->
-              <div style="padding: 24px 24px 10px 24px;">
-                <p style="font-size: 15px; color: #475569; margin: 0; line-height: 1.5;">Hello Admin, a new customer has submitted details on the website:</p>
-              </div>
-
-              <!-- 2-Column Main Layout (Using Table for Email Client Compatibility) -->
-              <div style="padding: 10px 24px 24px 24px;">
-                <table width="100%" cellspacing="0" cellpadding="0" border="0">
-                  <tr>
-                    <!-- Left Column: Customer Profile Box -->
-                    <td width="48%" valign="top" style="background-color: #fcf8f4; border: 1px solid #ebdccb; border-radius: 10px; padding: 18px; box-sizing: border-box;">
-                      <h3 style="margin: 0 0 14px 0; color: #7d3c16; font-size: 14px; letter-spacing: 0.5px; border-bottom: 2px solid #ebdccb; padding-bottom: 6px;">👤 CUSTOMER PROFILE</h3>
-                      
-                      <p style="margin: 8px 0; font-size: 16px; color: #1e293b; font-weight: bold;">${name}</p>
-                      
-                      <p style="margin: 12px 0 4px 0; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Mobile Number</p>
-                      <p style="margin: 0; font-size: 14px; color: #7d3c16; font-weight: bold;"><a href="tel:${mobile}" style="color: #7d3c16; text-decoration: none;">[${mobile}]</a></p>
-                      
-                      <p style="margin: 12px 0 4px 0; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Email Address</p>
-                      <p style="margin: 0; font-size: 14px; color: #334155; word-break: break-all;"><a href="mailto:${email}" style="color: #3b82f6; text-decoration: none;">[${email}]</a></p>
-                    </td>
-
-                    <!-- Center Spacer Column -->
-                    <td width="4%"></td>
-
-                    <!-- Right Column: Trip Details Box -->
-                    <td width="48%" valign="top" style="background-color: #fcf8f4; border: 1px solid #ebdccb; border-radius: 10px; padding: 18px; box-sizing: border-box;">
-                      <h3 style="margin: 0 0 14px 0; color: #7d3c16; font-size: 14px; letter-spacing: 0.5px; border-bottom: 2px solid #ebdccb; padding-bottom: 6px;">📋 TRIP AT A GLANCE</h3>
-                      
-                      <p style="margin: 0 0 12px 0; font-size: 14px; color: #334155; line-height: 1.6;">
-                        <strong style="color: #64748b; font-size: 11px; display: block; text-transform: uppercase; margin-bottom: 2px;">📅 Travel Date:</strong>
-                        <span style="font-weight: 600; color: #1e293b;">${date}</span>
-                      </p>
-                      
-                      <p style="margin: 0 0 12px 0; font-size: 14px; color: #334155; line-height: 1.6;">
-                        <strong style="color: #64748b; font-size: 11px; display: block; text-transform: uppercase; margin-bottom: 2px;">📍 Pickup Location:</strong>
-                        <span style="font-weight: 600; color: #1e293b;">${pickup}</span>
-                      </p>
-                      
-                      <p style="margin: 0; font-size: 14px; color: #334155; line-height: 1.6;">
-                        <strong style="color: #64748b; font-size: 11px; display: block; text-transform: uppercase; margin-bottom: 2px;">👥 Total Travelers:</strong>
-                        <span style="font-weight: 600; color: #1e293b;">${travelers} Persons</span>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-
-                <!-- Premium WhatsApp Button Setup -->
-                <div style="text-align: center; margin-top: 30px;">
-                  <a href="https://wa.me/91${mobile}?text=Hello%20${encodeURIComponent(name)},%20thank%20you%20for%20contacting%20Banaras%20Yatra.%20We%20received%20your%20tour%20inquiry!" 
-                     target="_blank" 
-                     style="background-color: #7d3c16; color: white; padding: 12px 28px; text-decoration: none; border-radius: 25px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.15); transition: background 0.2s;">
-                     💬 Connect on WhatsApp
-                  </a>
-                </div>
-              </div>
-
-              <!-- Professional Automated Footer -->
-              <div style="background-color: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #ebdccb;">
-                This is an automated system generation from Banaras Yatra web application portal.
-              </div>
-            </div>
-            `
+            subject: `🟡 New Website Inquiry Alert: ${name}`,
+            html: `<div style="font-family: Arial; padding: 20px; border: 1px solid #d97706;"><h2>🚩 New Travel Query Received</h2><p><b>Name:</b> ${name}<br/><b>Mobile:</b> ${mobile}<br/><b>Travel Date:</b> ${date}</p></div>`
         };
+        try {
+            await transporter.sendMail(adminMail);
+        } catch (mailError) {
+            console.error("❌ Admin Alert Email failed to send:", mailError);
+        }
 
-        transporter.sendMail(mailOptions, (mailErr) => {
-            if (mailErr) console.error("❌ Email Trigger Error:", mailErr);
-            else console.log("📧 Alert Email sent successfully to admin inbox!");
-        });
-
-        return res.status(200).json({ success: true, message: "🎉 Data saved and team notified successfully!" });
-
+        return res.status(200).json({ success: true, message: "🎉 Query registered successfully!" });
     } catch (error) {
-        console.error("System Error:", error);
-        return res.status(500).json({ success: false, message: "Internal Server Error." });
+        console.error("❌ Website Enquiry Route Failure:", error);
+        return res.status(500).json({ success: false, message: "Server Error." });
     }
 });
 
-// 🚀 Firebase Cloud Functions Ke Liye Express Export Kiya
+// 📊 2. Fetch All Combined Grid Data for CRM Dashboard
+app.get('/admin/enquiries', async (req, res) => {
+    try {
+        const [pending, inProgress, confirmed, cancelled] = await Promise.all([
+            Enquiry.find(), InProgressBooking.find(), ConfirmedBooking.find(), CancelledBooking.find()
+        ]);
+        const allLeads = [...pending, ...inProgress, ...confirmed, ...cancelled]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        return res.status(200).json({ success: true, data: allLeads });
+    } catch {
+        return res.status(500).json({ success: false, message: "Fetch failed." });
+    }
+});
+
+// 🔥 3. Master POST Update Route (Dynamic Folder Swapping & Custom Emails)
+app.post('/admin/enquiry/update/:id', async (req, res) => {
+    try {
+        const { status, totalAmount, advanceAmount, remainingAmount, cancellationReason, followUpDate, adminNotes } = req.body;
+        
+        // 1. Sanitize/Validate target status
+        const targetModel = modelsMap[status];
+        if (!targetModel) {
+            return res.status(400).json({ success: false, message: "Invalid or unsupported lead status." });
+        }
+
+        // 2. Locate current lead location
+        const searchResult = await findLeadAcrossCollections(req.params.id);
+        if (!searchResult) return res.status(404).json({ success: false, message: "Record not found." });
+
+        const { doc, currentModel } = searchResult;
+        let updatedData;
+
+        if (currentModel !== targetModel) {
+            // 3. Save to target collection FIRST to prevent accidental data loss
+            const newDocData = { 
+                ...doc.toObject(), 
+                status, 
+                totalAmount: Number(totalAmount) || 0, 
+                advanceAmount: Number(advanceAmount) || 0, 
+                remainingAmount: Number(remainingAmount) || 0, 
+                cancellationReason, 
+                followUpDate, 
+                adminNotes 
+            };
+            const newRecord = new targetModel(newDocData);
+            updatedData = await newRecord.save();
+
+            // 4. Delete old record only AFTER successful save
+            await currentModel.findByIdAndDelete(req.params.id);
+        } else {
+            // Standard update inside the same collection
+            updatedData = await currentModel.findByIdAndUpdate(
+                req.params.id,
+                { 
+                    status, 
+                    totalAmount: Number(totalAmount) || 0, 
+                    advanceAmount: Number(advanceAmount) || 0, 
+                    remainingAmount: Number(remainingAmount) || 0, 
+                    cancellationReason, 
+                    followUpDate, 
+                    adminNotes 
+                },
+                { new: true }
+            );
+        }
+
+        // 5. Safe Awaited Email Notification
+        if (status === 'Confirmed' && updatedData.email && !updatedData.email.includes('offline-client')) {
+            const clientConfirm = {
+                from: process.env.EMAIL_USER,
+                to: updatedData.email,
+                subject: `🎉 Your Banaras Yatra Trip is Confirmed!`,
+                html: `<div style="font-family: Arial; padding: 20px; border: 1px solid #16a34a;">
+                         <h2>Booking Confirmed Status</h2>
+                         <p>Hello ${updatedData.name}, your package details are locked:<br/>
+                         Total Amount: ₹${totalAmount}<br/>
+                         Advance Received: ₹${advanceAmount}<br/>
+                         Balance Outstanding: ₹${remainingAmount}</p>
+                       </div>`
+            };
+            try {
+                await transporter.sendMail(clientConfirm);
+            } catch (mailError) {
+                console.error("❌ Confirmation Email failed to send:", mailError);
+            }
+        }
+
+        return res.status(200).json({ success: true, message: "Saved!", data: updatedData });
+    } catch (error) {
+        console.error("❌ Update Route Failure:", error);
+        return res.status(500).json({ success: false, message: "Update failed." });
+    }
+});
+
+// ➕ 4. Add Offline Direct Local Entry
+app.post('/admin/enquiry/manual', async (req, res) => {
+    try {
+        const { name, mobile, email, pickup, date, travelers, status, totalAmount, advanceAmount, adminNotes } = req.body;
+        if (!name || !mobile) return res.status(400).json({ success: false, message: "Fields required." });
+
+        const total = Number(totalAmount) || 0;
+        const advance = Number(advanceAmount) || 0;
+        const currentStatus = status || 'Pending';
+        const targetModel = modelsMap[currentStatus];
+
+        const manualLead = new targetModel({
+            name, mobile,
+            email: email || 'offline-client@banarasyatra.com',
+            pickup: pickup || 'Direct Local Visit',
+            date: date || new Date().toISOString().split('T')[0],
+            travelers: travelers || "1",
+            status: currentStatus,
+            totalAmount: total, advanceAmount: advance, remainingAmount: total - advance, adminNotes
+        });
+
+        await manualLead.save();
+        return res.status(200).json({ success: true, data: manualLead });
+    } catch {
+        return res.status(500).json({ success: false, message: "Manual save failed." });
+    }
+});
+
 exports.api = functions.https.onRequest(app);

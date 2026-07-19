@@ -11,10 +11,9 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.2",
-    "mongoose": "^9.7.4",
-    "nodemailer": "^9.0.3",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

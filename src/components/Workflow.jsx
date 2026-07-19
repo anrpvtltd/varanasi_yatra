@@ -13,7 +13,7 @@ export default function Workflow() {
         <section className="py-20 bg-stone-50 border-t border-b border-stone-200/60 px-4 sm:px-6">
             <div className="max-w-7xl mx-auto text-center">
                 <h2 className="text-2xl font-serif font-bold text-stone-900 mb-12">Your Journey, Simplified</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-8 relative">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 relative">
                     {steps.map((p, i) => (
                         <div key={i} className="relative z-10 bg-white p-5 rounded-xl border border-stone-200/80 shadow-sm">
                             <div className="w-8 h-8 rounded-full bg-orange-600 text-white text-xs font-bold flex items-center justify-center mx-auto mb-3">{i + 1}</div>

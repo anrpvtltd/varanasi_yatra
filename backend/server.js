@@ -4,91 +4,212 @@ const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-const Enquiry = require('./models/Enquiry'); // Model Connect Kiya
-
 const app = express();
 
-// 🌐 CORS Fix: Frontend Port 5173 ko allow karna
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',') 
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000', 'http://localhost:5001'];
+
 app.use(cors({
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type']
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        return callback(new Error('CORS Policy block: Origin not allowed.'));
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 
 app.use(express.json());
 
-// 🟢 MongoDB Database Se Connection Setup
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("🟢 Cloud Database (MongoDB) Connected Successfully!"))
-    .catch((err) => console.error("❌ Database Connection Error:", err));
+// =========================================================================
+// 🗂️ MONGODB SEPARATE SCHEMAS (LOCAL COMPATIBILITY REPLICA)
+// =========================================================================
+const baseSchemaFields = {
+    name: { type: String, required: true },
+    mobile: { type: String, required: true },
+    email: { type: String, default: 'offline-client@banarasyatra.com' },
+    pickup: { type: String, default: 'Direct Booking' },
+    date: { type: String },
+    travelers: { type: String, default: '1' },
+    status: { type: String, default: 'Pending' },
+    totalAmount: { type: Number, default: 0 },
+    advanceAmount: { type: Number, default: 0 },
+    remainingAmount: { type: Number, default: 0 },
+    cancellationReason: { type: String },
+    followUpDate: { type: String },
+    adminNotes: { type: String }
+};
 
-// 📧 Mail Sender Configuration
+const EnquirySchema = new mongoose.Schema(baseSchemaFields, { timestamps: true });
+
+const Enquiry = mongoose.model('Enquiry', EnquirySchema, 'enquiries');
+const InProgressBooking = mongoose.model('InProgressBooking', EnquirySchema, 'inprogress_bookings');
+const ConfirmedBooking = mongoose.model('ConfirmedBooking', EnquirySchema, 'confirmed_bookings');
+const CancelledBooking = mongoose.model('CancelledBooking', EnquirySchema, 'cancelled_bookings');
+
+const modelsMap = {
+    'Pending': Enquiry, 'In-Progress': InProgressBooking, 'Confirmed': ConfirmedBooking, 'Cancelled': CancelledBooking
+};
+
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("🟢 Local Engine: Connected to Cloud MongoDB Atlas"))
+    .catch((err) => console.error("❌ Mongoose Connection Error:", err));
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+});
+
+async function findLeadAcrossCollections(id) {
+    for (const model of Object.values(modelsMap)) {
+        const doc = await model.findById(id);
+        if (doc) return { doc, currentModel: model };
+    }
+    return null;
+}
+
+// Routes
+app.post('/admin/verify-pin', (req, res) => {
+    try {
+        const { pin } = req.body;
+        const SECRET_PIN = process.env.ADMIN_PIN || "1234";
+        if (pin === SECRET_PIN) {
+            return res.status(200).json({ success: true, message: "PIN verified successfully!" });
+        }
+        return res.status(401).json({ success: false, message: "Invalid access PIN." });
+    } catch {
+        return res.status(500).json({ success: false, message: "Server authentication error." });
     }
 });
 
-// 📥 Customer Lead Input API Endpoint
 app.post('/api/enquiry', async (req, res) => {
     try {
         const { name, mobile, email, pickup, date, travelers } = req.body;
+        const newLead = new Enquiry({ name, mobile, email, pickup, date, travelers, status: 'Pending' });
+        await newLead.save();
 
-        // Validation Check
-        if (!name || !mobile || !email || !pickup || !date) {
-            return res.status(400).json({ success: false, message: "Please fill all required fields properly." });
+        const adminMail = {
+            from: process.env.EMAIL_USER,
+            to: process.env.EMAIL_USER,
+            subject: `🟡 New Website Inquiry Alert: ${name}`,
+            html: `<div style="font-family: Arial; padding: 20px; border: 1px solid #d97706;"><h2>🚩 New Travel Query Received</h2><p><b>Name:</b> ${name}<br/><b>Mobile:</b> ${mobile}<br/><b>Travel Date:</b> ${date}</p></div>`
+        };
+        try {
+            await transporter.sendMail(adminMail);
+        } catch (mailError) {
+            console.error("❌ Admin Alert Email failed to send:", mailError);
         }
 
-        // 1. Database Mein Permanent Save Karna
-        const newEnquiry = new Enquiry({ name, mobile, email, pickup, date, travelers });
-        await newEnquiry.save();
-        console.log(`💾 Lead for client "${name}" successfully locked in Database.`);
+        return res.status(200).json({ success: true, message: "Saved locally!" });
+    } catch { return res.status(500).json({ success: false }); }
+});
 
-        // 2. Beautiful Professional Layout Email Notification Send Karna
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: process.env.EMAIL_USER, // Aapko aapki hi mail par alert aayega
-            subject: `🚨 New Enquire Alert: ${name} is reaching out!`,
-            html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-          <div style="background: linear-gradient(135deg, #ea580c 0%, #d97706 100%); padding: 20px; text-align: center; color: white;">
-            <h1 style="margin: 0; font-size: 20px;">Banaras Yatra — New Travel Inquiry</h1>
-          </div>
-          <div style="padding: 20px; color: #334155;">
-            <p style="font-size: 14px;">Hello Admin, a new customer has submitted details on the website:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
-              <tr style="background-color: #f8fafc;"><td style="padding: 8px; font-weight: bold; border: 1px solid #e2e8f0;">Name:</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${name}</td></tr>
-              <tr><td style="padding: 8px; font-weight: bold; border: 1px solid #e2e8f0;">Mobile:</td><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #ea580c;"><a href="tel:${mobile}" style="color: #ea580c; text-decoration: none;">${mobile}</a></td></tr>
-              <tr style="background-color: #f8fafc;"><td style="padding: 8px; font-weight: bold; border: 1px solid #e2e8f0;">Email:</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${email}</td></tr>
-              <tr><td style="padding: 8px; font-weight: bold; border: 1px solid #e2e8f0;">Pickup:</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${pickup}</td></tr>
-              <tr style="background-color: #f8fafc;"><td style="padding: 8px; font-weight: bold; border: 1px solid #e2e8f0;">Date:</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${date}</td></tr>
-              <tr><td style="padding: 8px; font-weight: bold; border: 1px solid #e2e8f0;">Travelers:</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${travelers} Persons</td></tr>
-            </table>
-            <div style="text-align: center; margin-top: 20px;">
-              <a href="https://wa.me/91${mobile}" target="_blank" style="background-color: #22c55e; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; display: inline-block;">💬 Connect on WhatsApp</a>
-            </div>
-          </div>
-        </div>
-      `
-        };
+app.get('/admin/enquiries', async (req, res) => {
+    try {
+        const [pending, inProgress, confirmed, cancelled] = await Promise.all([
+            Enquiry.find(), InProgressBooking.find(), ConfirmedBooking.find(), CancelledBooking.find()
+        ]);
+        const allLeads = [...pending, ...inProgress, ...confirmed, ...cancelled].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        return res.status(200).json({ success: true, data: allLeads });
+    } catch { return res.status(500).json({ success: false }); }
+});
 
-        // Async Email trigger
-        transporter.sendMail(mailOptions, (mailErr) => {
-            if (mailErr) console.error("❌ Email Trigger Error:", mailErr);
-            else console.log("📧 Alert Email sent successfully to admin inbox!");
-        });
+app.post('/admin/enquiry/update/:id', async (req, res) => {
+    try {
+        const { status, totalAmount, advanceAmount, remainingAmount, cancellationReason, followUpDate, adminNotes } = req.body;
+        
+        // 1. Sanitize/Validate target status
+        const targetModel = modelsMap[status];
+        if (!targetModel) {
+            return res.status(400).json({ success: false, message: "Invalid or unsupported lead status." });
+        }
 
-        return res.status(200).json({ success: true, message: "🎉 Data saved and team notified successfully!" });
+        // 2. Locate current lead location
+        const searchResult = await findLeadAcrossCollections(req.params.id);
+        if (!searchResult) return res.status(404).json({ success: false, message: "Record not found." });
 
+        const { doc, currentModel } = searchResult;
+        let updatedData;
+
+        if (currentModel !== targetModel) {
+            // 3. Save to target collection FIRST to prevent accidental data loss
+            const newDocData = { 
+                ...doc.toObject(), 
+                status, 
+                totalAmount: Number(totalAmount) || 0, 
+                advanceAmount: Number(advanceAmount) || 0, 
+                remainingAmount: Number(remainingAmount) || 0, 
+                cancellationReason, 
+                followUpDate, 
+                adminNotes 
+            };
+            const newRecord = new targetModel(newDocData);
+            updatedData = await newRecord.save();
+
+            // 4. Delete old record only AFTER successful save
+            await currentModel.findByIdAndDelete(req.params.id);
+        } else {
+            // Standard update inside the same collection
+            updatedData = await currentModel.findByIdAndUpdate(
+                req.params.id,
+                { 
+                    status, 
+                    totalAmount: Number(totalAmount) || 0, 
+                    advanceAmount: Number(advanceAmount) || 0, 
+                    remainingAmount: Number(remainingAmount) || 0, 
+                    cancellationReason, 
+                    followUpDate, 
+                    adminNotes 
+                },
+                { new: true }
+            );
+        }
+
+        // 5. Safe Awaited Email Notification
+        if (status === 'Confirmed' && updatedData.email && !updatedData.email.includes('offline-client')) {
+            const clientConfirm = {
+                from: process.env.EMAIL_USER,
+                to: updatedData.email,
+                subject: `🎉 Your Banaras Yatra Trip is Confirmed!`,
+                html: `<div style="font-family: Arial; padding: 20px; border: 1px solid #16a34a;">
+                         <h2>Booking Confirmed Status</h2>
+                         <p>Hello ${updatedData.name}, your package details are locked:<br/>
+                         Total Amount: ₹${totalAmount}<br/>
+                         Advance Received: ₹${advanceAmount}<br/>
+                         Balance Outstanding: ₹${remainingAmount}</p>
+                       </div>`
+            };
+            try {
+                await transporter.sendMail(clientConfirm);
+            } catch (mailError) {
+                console.error("❌ Confirmation Email failed to send:", mailError);
+            }
+        }
+
+        return res.status(200).json({ success: true, message: "Saved!", data: updatedData });
     } catch (error) {
-        console.error("System Error:", error);
-        return res.status(500).json({ success: false, message: "Internal Server Error." });
+        console.error("❌ Update Route Failure:", error);
+        return res.status(500).json({ success: false, message: "Update failed." });
     }
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-    console.log(`🚀 Varanasi Yatra Backend Engine active on port ${PORT}`);
+app.post('/admin/enquiry/manual', async (req, res) => {
+    try {
+        const { name, mobile, status, totalAmount, advanceAmount, adminNotes } = req.body;
+        const currentStatus = status || 'Pending';
+        const targetModel = modelsMap[currentStatus];
+        const manualLead = new targetModel({
+            name, mobile, status: currentStatus, totalAmount, advanceAmount, remainingAmount: (totalAmount - advanceAmount), adminNotes,
+            email: 'offline-client@banarasyatra.com', pickup: 'Direct Visit', date: new Date().toISOString().split('T')[0]
+        });
+        await manualLead.save();
+        return res.status(200).json({ success: true, data: manualLead });
+    } catch { return res.status(500).json({ success: false }); }
 });
+
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => console.log(`🚀 Local Engine active on http://localhost:${PORT}`));

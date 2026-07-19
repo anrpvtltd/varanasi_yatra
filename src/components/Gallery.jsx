@@ -1,4 +1,5 @@
 import React from 'react';
+import ImageWithSkeleton from './ImageWithSkeleton';
 
 // ExperienceVaranasi files imported cleanly
 import assiImg from '../assets/ExperienceVaranasi/AssiMorning.png';
@@ -40,7 +41,7 @@ export default function Gallery() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                     {galleryImages.map((img, idx) => (
                         <div key={idx} className="group relative h-64 bg-stone-950 rounded-2xl overflow-hidden border border-stone-800 shadow-lg transform hover:-translate-y-1 transition-all duration-300">
-                            <img src={img.url} alt={img.alt} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
+                            <ImageWithSkeleton src={img.url} alt={img.alt} className="transform group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
                             <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex flex-col justify-end p-5 text-left">
                                 <span className="text-orange-400 text-[10px] uppercase font-bold tracking-widest mb-1">📸 Varanasi Assets</span>
                                 <p className="text-white text-xs font-medium leading-relaxed">{img.caption}</p>

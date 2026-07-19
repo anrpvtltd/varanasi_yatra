@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://banarasyatra.com/sitemap.xml
