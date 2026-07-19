@@ -16,6 +16,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
+    "express-rate-limit": "^8.6.0",
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.2.5",
     "mongoose": "^9.7.4",

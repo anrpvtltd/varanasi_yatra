@@ -80,8 +80,18 @@ async function findLeadAcrossCollections(id) {
     return null;
 }
 
+const rateLimit = require('express-rate-limit');
+
+const pinLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Limit each IP to 5 requests per windowMs
+    message: { success: false, message: "Too many incorrect PIN attempts. Please try again after 15 minutes." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Routes
-app.post('/admin/verify-pin', (req, res) => {
+app.post('/admin/verify-pin', pinLimiter, (req, res) => {
     try {
         const { pin } = req.body;
         const SECRET_PIN = process.env.ADMIN_PIN || "1234";
@@ -228,13 +238,54 @@ app.post('/admin/enquiry/update/:id', async (req, res) => {
                 from: process.env.EMAIL_USER,
                 to: updatedData.email,
                 subject: `🎉 Your Banaras Yatra Trip is Confirmed!`,
-                html: `<div style="font-family: Arial; padding: 20px; border: 1px solid #16a34a;">
-                         <h2>Booking Confirmed Status</h2>
-                         <p>Hello ${updatedData.name}, your package details are locked:<br/>
-                         Total Amount: ₹${totalAmount}<br/>
-                         Advance Received: ₹${advanceAmount}<br/>
-                         Balance Outstanding: ₹${remainingAmount}</p>
-                       </div>`
+                html: `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1.5px solid #d97706; border-radius: 16px; background-color: #fafaf9; color: #1c1917;">
+    <div style="text-align: center; border-bottom: 2px solid #d97706; padding-bottom: 15px; margin-bottom: 20px;">
+        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 BANARAS YATRA</h2>
+        <p style="color: #78716c; margin: 5px 0 0 0; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Trip Confirmation Receipt</p>
+    </div>
+    
+    <div style="margin-bottom: 25px;">
+        <p style="font-size: 14px; margin: 0 0 15px 0; color: #44403c; line-height: 1.6;">Dear <strong>${updatedData.name}</strong>, Namaste!</p>
+        <p style="font-size: 14px; margin: 0 0 15px 0; color: #44403c; line-height: 1.6;">We are pleased to inform you that your tour package details are locked and officially <strong>Confirmed</strong>! We are excited to make your journey to Varanasi divine and memorable.</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            <tr style="background-color: #fafaf9;">
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706; width: 45%;">📅 Travel Date:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${updatedData.date}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">📍 Pickup Point:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${updatedData.pickup}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #d97706;">👥 No. of Travelers:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 600;">${updatedData.travelers} Pax</td>
+            </tr>
+            <tr style="background-color: #fafaf9;">
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #1c1917;">💰 Total Package Value:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #1c1917; font-weight: 700;">₹${totalAmount}</td>
+            </tr>
+            <tr style="background-color: #f0fdf4;">
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #16a34a;">🟢 Advance Token Paid:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #16a34a; font-weight: 700;">₹${advanceAmount}</td>
+            </tr>
+            <tr style="background-color: #fef2f2;">
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-weight: bold; font-size: 13px; color: #dc2626;">⏳ Balance Due:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e7e5e4; font-size: 13px; color: #dc2626; font-weight: 800;">₹${remainingAmount}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 12px; color: #b45309; line-height: 1.5;">
+        <strong>📜 Next Steps:</strong><br/>
+        Our travel coordinators will call you 24 hours prior to your travel to share details of the pickup vehicle and assigned pilot/driver. Please keep the balance outstanding ready for settlement upon pickup.
+    </div>
+
+    <div style="text-align: center; border-top: 1px solid #e7e5e4; padding-top: 15px;">
+        <p style="margin: 0; font-size: 12px; color: #44403c;">Need assistance? Connect with our 24/7 Helpline: <strong>+91 8400554029</strong></p>
+        <p style="margin: 5px 0 0 0; font-size: 10px; color: #a8a29e;">Thank you for choosing Banaras Yatra. Have a divine pilgrimage!</p>
+    </div>
+</div>`
             };
             try {
                 await transporter.sendMail(clientConfirm);
@@ -252,16 +303,29 @@ app.post('/admin/enquiry/update/:id', async (req, res) => {
 
 app.post('/admin/enquiry/manual', async (req, res) => {
     try {
-        const { name, mobile, status, totalAmount, advanceAmount, adminNotes } = req.body;
+        const { name, mobile, email, pickup, date, travelers, status, totalAmount, advanceAmount, adminNotes } = req.body;
+        if (!name || !mobile) return res.status(400).json({ success: false, message: "Fields required." });
+
+        const total = Number(totalAmount) || 0;
+        const advance = Number(advanceAmount) || 0;
         const currentStatus = status || 'Pending';
         const targetModel = modelsMap[currentStatus];
+
         const manualLead = new targetModel({
-            name, mobile, status: currentStatus, totalAmount, advanceAmount, remainingAmount: (totalAmount - advanceAmount), adminNotes,
-            email: 'offline-client@banarasyatra.com', pickup: 'Direct Visit', date: new Date().toISOString().split('T')[0]
+            name, mobile,
+            email: email || 'offline-client@banarasyatra.com',
+            pickup: pickup || 'Direct Local Visit',
+            date: date || new Date().toISOString().split('T')[0],
+            travelers: travelers || "1",
+            status: currentStatus,
+            totalAmount: total, advanceAmount: advance, remainingAmount: total - advance, adminNotes
         });
+
         await manualLead.save();
         return res.status(200).json({ success: true, data: manualLead });
-    } catch { return res.status(500).json({ success: false }); }
+    } catch {
+        return res.status(500).json({ success: false, message: "Manual save failed." });
+    }
 });
 
 const PORT = process.env.PORT || 5001;
