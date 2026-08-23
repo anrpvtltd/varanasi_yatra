@@ -20,8 +20,11 @@
     "express-rate-limit": "^8.6.0",
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.2.5",
+    "gaxios": "^7.3.1",
+    "gcp-metadata": "^7.0.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.4",
+    "node-fetch": "^3.3.2",
     "nodemailer": "^9.0.3"
   },
   "devDependencies": {
