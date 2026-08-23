@@ -81,14 +81,16 @@ export default function BookingForm({ containerClassName = '' }) {
                     mobile: trimmedMobile,
                     email: trimmedEmail,
                     pickup: trimmedPickup,
+                    destination: formData.destination || 'Varanasi',
                     date: trimmedDate,
-                    travelers: travelersVal
+                    travelers: travelersVal,
+                    specialRequirements: formData.specialRequirements || ''
                 }),
             });
             const data = await response.json();
             if (response.ok && data.success) {
                 setSubmitted(true);
-                setFormData({ name: '', mobile: '', email: '', pickup: '', date: '', travelers: '1' });
+                setFormData({ name: '', mobile: '', email: '', pickup: '', destination: '', date: '', travelers: '1', specialRequirements: '' });
                 setTimeout(() => setSubmitted(false), 9000);
             } else {
                 setErrorMsg(data.message || 'Something went wrong. Please try again.');

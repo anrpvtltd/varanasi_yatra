@@ -93,7 +93,9 @@ export default function App() {
   const isAdminView = window.location.search.includes('admin') || window.location.hash.includes('admin');
 
   if (isAdminView) {
-    return <AdminCRM />;
+    // Redirect legacy URL parameter to new Operations Portal route
+    window.location.replace('/operations');
+    return null;
   }
 
   return (
@@ -149,6 +151,7 @@ export default function App() {
             <Route path="/" element={<Homepage />} />
             <Route path="/destinations/:id" element={<DestinationTemplate />} />
             <Route path="/packages/:id" element={<PackageTemplate />} />
+            <Route path="/operations" element={<AdminCRM />} />
             
             {/* Dynamic Catch-all Redirect to Home */}
             <Route path="*" element={<Homepage />} />

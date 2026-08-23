@@ -94,7 +94,7 @@ export default function Footer() {
                     </div>
 
                     {/* Blog Button */}
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-col space-y-3.5 items-start">
                         <button
                             onClick={handleBlogClick}
                             className={`inline-flex items-center space-x-2 border px-4 py-2.5 rounded-xl text-xs font-bold tracking-wide shadow-sm transform hover:scale-105 transition-all duration-200 cursor-pointer outline-none ${isComingSoon
@@ -105,6 +105,15 @@ export default function Footer() {
                             <span>📚 {blogText}</span>
                             {!isComingSoon && <span className="text-[10px] opacity-60">➔</span>}
                         </button>
+
+                        <a
+                            href="/operations"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-2 bg-stone-900 border border-stone-850 hover:bg-orange-950/20 hover:border-orange-500/50 text-stone-400 hover:text-orange-400 px-4 py-2.5 rounded-xl text-xs font-bold tracking-wide shadow-sm transform hover:scale-105 transition-all duration-200 cursor-pointer outline-none focus:ring-1 focus:ring-orange-500/30 select-none"
+                        >
+                            <span>🔐 TEAM ACCESS</span>
+                        </a>
                     </div>
                 </div>
 
