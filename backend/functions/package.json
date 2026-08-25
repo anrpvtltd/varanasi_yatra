@@ -22,6 +22,7 @@
     "firebase-functions": "^7.2.5",
     "gaxios": "^7.3.1",
     "gcp-metadata": "^7.0.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.4",
     "node-fetch": "^3.3.2",

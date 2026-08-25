@@ -8,21 +8,22 @@ const crypto = require('crypto');
 const helmet = require('helmet');
 require('dotenv').config();
 
-const { validateEnvironment } = require('../config/env');
-const healthRoutes = require('../routes/healthRoutes');
+const { validateEnvironment } = require('./config/env');
+const { requestLogger } = require('./middleware/productionLogger');
+const healthRoutes = require('./routes/healthRoutes');
 const {
     uploadFileAttachment, getAttachments, getAttachmentById,
     getAttachmentBuffer, deleteAttachment, verifyFileAccessPermission
-} = require('../storage/storageManager');
-const { hashToken, sanitizeNoSQLInput } = require('../utils/security');
-const { setAutomationEnabled, getAutomationEnabled, manualRetryLog } = require('../automation/automationEngine');
-const { getAutomationLogs } = require('../automation/automationLogger');
-const { getNotificationProvider } = require('../automation/notificationService');
-const { DEFAULT_TEMPLATES, renderTemplate } = require('../automation/messageTemplates');
+} = require('./storage/storageManager');
+const { hashToken, sanitizeNoSQLInput } = require('./utils/security');
+const { setAutomationEnabled, getAutomationEnabled, manualRetryLog } = require('./automation/automationEngine');
+const { getAutomationLogs } = require('./automation/automationLogger');
+const { getNotificationProvider } = require('./automation/notificationService');
+const { DEFAULT_TEMPLATES, renderTemplate } = require('./automation/messageTemplates');
 const {
     generateDocument, regenerateDocument, getDocuments, getDocumentById,
     archiveDocument, createDocumentToken, validateAccessToken, readDocumentFile
-} = require('../documents/documentService');
+} = require('./documents/documentService');
 
 const env = validateEnvironment();
 const app = express();
@@ -62,6 +63,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '15mb' }));
+app.use(requestLogger);
 app.use(healthRoutes);
 
 // 🛡️ NoSQL Injection Prevention Middleware
@@ -1762,7 +1764,7 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
     try {
         const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
-        const Lead = mongoose.model('Lead', LeadSchema, 'leads');
+        const Lead = Enquiry;
 
         const { bookingId, amount, paymentMethod, paymentDate, referenceNumber, notes } = req.body;
         const numAmount = Number(amount);
@@ -2102,7 +2104,7 @@ app.get('/admin/booking/:bookingId/financial-summary', authenticateToken, requir
 app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
-        const Lead = mongoose.model('Lead', LeadSchema, 'leads');
+        const Lead = Enquiry;
         const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
 
         const bookings = await Booking.find().sort({ createdAt: -1 });
@@ -2143,7 +2145,7 @@ app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Mana
 app.get('/admin/dashboard/ceo', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
-        const Lead = mongoose.model('Lead', LeadSchema, 'leads');
+        const Lead = Enquiry;
         const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
         const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
         const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
