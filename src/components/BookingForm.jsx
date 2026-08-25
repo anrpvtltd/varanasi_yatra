@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BASE_URL } from '../constants/crm';
 
 export default function BookingForm({ containerClassName = '' }) {
     const [formData, setFormData] = useState({
@@ -72,7 +73,7 @@ export default function BookingForm({ containerClassName = '' }) {
 
         setIsSubmitting(true);
         try {
-            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const apiBaseUrl = BASE_URL;
             const response = await fetch(`${apiBaseUrl}/api/enquiry`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

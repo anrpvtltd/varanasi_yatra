@@ -1,4 +1,4 @@
-export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://api-gzo7qrxiuq-uc.a.run.app' : 'http://localhost:5001');
 
 export const STATUS_GRADIENTS = {
     'Completed': 'from-teal-500 to-emerald-600',

@@ -152,6 +152,8 @@ export default function App() {
             <Route path="/destinations/:id" element={<DestinationTemplate />} />
             <Route path="/packages/:id" element={<PackageTemplate />} />
             <Route path="/operations" element={<AdminCRM />} />
+            <Route path="/admin" element={<AdminCRM />} />
+            <Route path="/crm" element={<AdminCRM />} />
             
             {/* Dynamic Catch-all Redirect to Home */}
             <Route path="*" element={<Homepage />} />
