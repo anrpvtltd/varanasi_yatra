@@ -1,31 +1,63 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const helmet = require('helmet');
 require('dotenv').config();
 
+const { validateEnvironment } = require('./config/env');
+const { connectDatabase } = require('./config/database');
+const { requestLogger } = require('./middleware/productionLogger');
+const healthRoutes = require('./routes/healthRoutes');
+const {
+    uploadFileAttachment, getAttachments, getAttachmentById,
+    getAttachmentBuffer, deleteAttachment, verifyFileAccessPermission
+} = require('./storage/storageManager');
+const { hashToken, sanitizeNoSQLInput } = require('./utils/security');
+const { setAutomationEnabled, getAutomationEnabled, triggerAutomationEvent, manualRetryLog } = require('./automation/automationEngine');
+const { getAutomationLogs } = require('./automation/automationLogger');
+const { getNotificationProvider } = require('./automation/notificationService');
+const { DEFAULT_TEMPLATES, renderTemplate } = require('./automation/messageTemplates');
+const {
+    generateDocument, regenerateDocument, getDocuments, getDocumentById,
+    archiveDocument, createDocumentToken, validateAccessToken, readDocumentFile
+} = require('./documents/documentService');
+
+const env = validateEnvironment();
 const app = express();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : [
-        'https://varanasi-yatra.vercel.app',
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:5175',
-        'http://localhost:3000',
-        'http://localhost:5001'
-      ];
+// Trust reverse proxy if running behind load balancers/cloud run/firebase
+if (env.isProduction) {
+    app.set('trust proxy', 1);
+}
+
+// 🛡️ Helmet Security Headers & CORS Configuration
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production')) {
+    if (origin && (env.allowedOrigins.includes(origin) || (!env.isProduction && !env.isStaging))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    // Extra HTTP Security Headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-XSS-Protection', '0');
+    if (env.isProduction) {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
 
     if (req.method === 'OPTIONS') {
         return res.status(204).end();
@@ -33,7 +65,37 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use((req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, env.jwtSecret);
+            req.user = decoded;
+        } catch {
+            // Token invalid or expired
+        }
+    }
+    next();
+});
+app.use(requestLogger);
+app.use(healthRoutes);
+
+// 🛡️ NoSQL Injection Prevention Middleware
+app.use((req, res, next) => {
+    try {
+        if (req.body && typeof req.body === 'object') {
+            req.body = sanitizeNoSQLInput(req.body);
+        }
+        if (req.query && typeof req.query === 'object') {
+            req.query = sanitizeNoSQLInput(req.query);
+        }
+        next();
+    } catch {
+        return res.status(400).json({ success: false, message: "Invalid input syntax or operator injection detected." });
+    }
+});
 
 // =========================================================================
 // 🗂️ MONGODB SCHEMAS (6 WORKFLOW COLLECTIONS FOR CRM MASTER)
@@ -62,6 +124,17 @@ const baseSchemaFields = {
     hotelDetails: { type: String, default: '' },
     panditDetails: { type: String, default: '' },
     documents: [{ type: String }],
+    leadSource: { type: String, default: 'Website' },
+    city: { type: String, default: '' },
+    tripDuration: { type: String, default: '3 Days' },
+    stage: { type: String, default: 'NEW' },
+    requirements: { type: mongoose.Schema.Types.Mixed, default: {} },
+    activityHistory: [{
+        timestamp: String,
+        action: String,
+        actor: String,
+        details: String
+    }],
     statusHistory: [{
         previousStatus: String,
         newStatus: String,
@@ -80,6 +153,34 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const User = mongoose.model('User', UserSchema, 'users');
+
+const AuthSessionSchema = new mongoose.Schema({
+    userId: { type: String, required: true },
+    tokenHash: { type: String, required: true, index: true },
+    sessionFamilyId: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+    revokedAt: { type: Date, default: null },
+    createdAt: { type: Date, default: Date.now },
+    lastUsedAt: { type: Date, default: Date.now },
+    userAgent: { type: String, default: '' },
+    ipAddress: { type: String, default: '' }
+}, { timestamps: true });
+
+const AuthSession = mongoose.model('AuthSession', AuthSessionSchema, 'auth_sessions');
+
+const MessageTemplateSchema = new mongoose.Schema({
+    templateId: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    category: { type: String, default: 'GENERAL' },
+    channel: { type: String, enum: ['WHATSAPP', 'EMAIL', 'BOTH'], default: 'WHATSAPP' },
+    subject: { type: String, default: '' },
+    body: { type: String, required: true },
+    variables: [{ type: String }],
+    isSystemDefault: { type: Boolean, default: false },
+    updatedBy: { type: String, default: 'System' }
+}, { timestamps: true });
+
+
 
 async function initializeUsers() {
     try {
@@ -142,6 +243,238 @@ const TripStartedBooking = mongoose.model('TripStartedBooking', EnquirySchema, '
 const CompletedBooking = mongoose.model('CompletedBooking', EnquirySchema, 'completed_bookings');
 const CancelledBooking = mongoose.model('CancelledBooking', EnquirySchema, 'cancelled_bookings');
 
+// =========================================================================
+// 📑 PHASE 4 EXTENSION SCHEMAS (QUOTES & VENDORS)
+// =========================================================================
+const QuoteSchema = new mongoose.Schema({
+    leadId: { type: String, required: true },
+    quoteNumber: { type: String, required: true },
+    version: { type: Number, default: 1 },
+    packageType: { type: String, default: 'COMPLETE' },
+    travelDate: { type: String, default: '' },
+    travelers: { type: String, default: '1' },
+    tripDuration: { type: String, default: '3 Days / 2 Nights' },
+    servicesList: [{
+        category: String,
+        vendorId: String,
+        serviceName: String,
+        vendorName: String,
+        quantity: { type: Number, default: 1 },
+        unit: { type: String, default: 'Item' },
+        vendorCost: { type: Number, default: 0 },
+        customerDisplayName: String,
+        notes: String
+    }],
+    totalVendorCost: { type: Number, default: 0 },
+    marginType: { type: String, default: 'FIXED' },
+    marginValue: { type: Number, default: 2500 },
+    companyMargin: { type: Number, default: 2500 },
+    suggestedCustomerPrice: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    finalCustomerPrice: { type: Number, default: 0 },
+    expectedProfit: { type: Number, default: 0 },
+    status: { type: String, default: 'Draft' },
+    validUntil: { type: String, default: '' },
+    inclusions: [{ type: String }],
+    exclusions: [{ type: String }],
+    termsNotes: { type: String, default: '' },
+    createdBy: { type: String, default: 'Manager' }
+}, { timestamps: true });
+
+
+const VendorSchema = new mongoose.Schema({
+    vendorCode: { type: String, default: '' },
+    category: { type: String, required: true },
+    businessName: { type: String, required: true },
+    name: { type: String },
+    contactPerson: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    mobile: { type: String },
+    alternatePhone: { type: String, default: '' },
+    email: { type: String, default: '' },
+    city: { type: String, default: 'Varanasi' },
+    location: { type: String, default: 'Varanasi' },
+    address: { type: String, default: '' },
+    status: { type: String, default: 'ACTIVE' },
+    availabilityStatus: { type: String, default: 'Active' },
+    rating: { type: Number, default: 4.5 },
+    baseRate: { type: Number, default: 0 },
+    commissionPercent: { type: Number, default: 0 },
+    notes: { type: String, default: '' },
+    services: [{
+        serviceId: String,
+        serviceCategory: String,
+        serviceName: String,
+        description: String,
+        unit: { type: String, default: 'ITEM' },
+        baseRate: { type: Number, default: 0 },
+        currency: { type: String, default: 'INR' },
+        isActive: { type: Boolean, default: true }
+    }],
+    metadata: {
+        hotelName: String,
+        roomType: String,
+        vehicleType: String,
+        capacity: Number,
+        pujaType: String,
+        shopName: String,
+        commissionType: { type: String, default: 'PERCENTAGE' },
+        commissionValue: { type: Number, default: 0 }
+    },
+    performance: {
+        totalAssignments: { type: Number, default: 0 },
+        successfulAssignments: { type: Number, default: 0 },
+        cancelledAssignments: { type: Number, default: 0 },
+        issueCount: { type: Number, default: 0 },
+        onTimeCount: { type: Number, default: 0 },
+        reliabilityScore: { type: Number, default: null }
+    }
+}, { timestamps: true });
+
+
+const BookingSchema = new mongoose.Schema({
+    bookingNumber: { type: String, required: true, unique: true },
+    leadId: { type: String, required: true },
+    quoteId: { type: String, required: true },
+    customerId: { type: String, default: '' },
+    customerDetails: {
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        email: { type: String, default: '' },
+        city: { type: String, default: '' }
+    },
+    travelDetails: {
+        travelDate: { type: String, default: '' },
+        endDate: { type: String, default: '' },
+        travelers: { type: String, default: '1' },
+        tripDuration: { type: String, default: '3 Days / 2 Nights' },
+        pickup: { type: String, default: '' },
+        destination: { type: String, default: 'Varanasi' }
+    },
+    packageDetails: {
+        packageType: { type: String, default: 'COMPLETE' },
+        packageName: { type: String, default: 'Complete All-Inclusive Package' },
+        finalCustomerPrice: { type: Number, default: 0 }
+    },
+    services: [{
+        serviceCategory: String,
+        displayName: String,
+        quantity: { type: Number, default: 1 },
+        unit: { type: String, default: 'Item' },
+        vendorCostSnapshot: { type: Number, default: 0 },
+        status: { type: String, default: 'NOT_STARTED' },
+        assignmentStatus: { type: String, default: 'Unassigned' }
+    }],
+    bookingStatus: { type: String, default: 'PENDING' },
+    tripReadiness: {
+        totalRequired: { type: Number, default: 0 },
+        completed: { type: Number, default: 0 },
+        pending: { type: Number, default: 0 },
+        percentage: { type: Number, default: 0 },
+        status: { type: String, default: 'INCOMPLETE' },
+        missingItems: [{ type: String }]
+    },
+    preparationChecklist: [{
+        serviceCategory: String,
+        label: String,
+        required: { type: Boolean, default: true },
+        status: { type: String, default: 'NOT_STARTED' },
+        completedAt: String,
+        notes: String
+    }],
+    vendorAssignments: [{
+        serviceCategory: String,
+        vendorId: String,
+        vendorName: String,
+        contactPerson: String,
+        mobile: String,
+        status: { type: String, default: 'Pending' }
+    }],
+    customerPaymentSummary: {
+        packagePrice: { type: Number, default: 0 },
+        totalPaid: { type: Number, default: 0 },
+        customerDue: { type: Number, default: 0 },
+        paymentStatus: { type: String, default: 'UNPAID' }
+    },
+    vendorPaymentSummary: {
+        plannedVendorCost: { type: Number, default: 0 },
+        actualVendorCost: { type: Number, default: 0 },
+        totalPaidToVendors: { type: Number, default: 0 },
+        vendorDue: { type: Number, default: 0 },
+        paymentStatus: { type: String, default: 'NOT_PAID' }
+    },
+    profitSummary: {
+        expectedProfit: { type: Number, default: 0 },
+        actualRevenue: { type: Number, default: 0 },
+        actualVendorExpense: { type: Number, default: 0 },
+        additionalBusinessExpense: { type: Number, default: 0 },
+        commissionIncome: { type: Number, default: 0 },
+        actualProfit: { type: Number, default: 0 },
+        profitStatus: { type: String, default: 'ESTIMATED' }
+    },
+    activityHistory: [{
+        type: { type: String, default: 'INFO' },
+        message: String,
+        timestamp: String,
+        performedBy: String
+    }]
+}, { timestamps: true });
+
+// =========================================================================
+// 💳 PHASE 4 PROMPT 6 — PAYMENT, EXPENSE & REAL PROFIT SCHEMAS
+// =========================================================================
+
+const CustomerPaymentSchema = new mongoose.Schema({
+    paymentId: { type: String, required: true, unique: true },
+    bookingId: { type: String, required: true },
+    customerId: { type: String, default: '' },
+    amount: { type: Number, required: true, min: 0.01 },
+    paymentMethod: { type: String, default: 'UPI' }, // CASH, UPI, BANK_TRANSFER, CARD, OTHER
+    paymentDate: { type: String, required: true },
+    referenceNumber: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    status: { type: String, default: 'COMPLETED' },
+    receivedBy: { type: String, default: '' }
+}, { timestamps: true });
+
+const VendorPaymentSchema = new mongoose.Schema({
+    paymentId: { type: String, required: true, unique: true },
+    bookingId: { type: String, required: true },
+    vendorId: { type: String, required: true },
+    vendorNameSnapshot: { type: String, default: '' },
+    serviceCategory: { type: String, default: 'OTHER' },
+    amount: { type: Number, required: true, min: 0.01 },
+    paymentMethod: { type: String, default: 'BANK_TRANSFER' }, // CASH, UPI, BANK_TRANSFER, CARD, OTHER
+    paymentDate: { type: String, required: true },
+    referenceNumber: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    status: { type: String, default: 'COMPLETED' },
+    paidBy: { type: String, default: '' }
+}, { timestamps: true });
+
+const BusinessExpenseSchema = new mongoose.Schema({
+    expenseId: { type: String, required: true, unique: true },
+    bookingId: { type: String, default: '' },
+    expenseCategory: { type: String, required: true }, // MARKETING, OFFICE, TRAVEL, STAFF, COMMISSION, REFUND, OTHER
+    description: { type: String, default: '' },
+    amount: { type: Number, required: true, min: 0.01 },
+    expenseDate: { type: String, required: true },
+    paymentMethod: { type: String, default: 'UPI' },
+    referenceNumber: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    createdBy: { type: String, default: '' }
+}, { timestamps: true });
+
+
+// eslint-disable-next-line no-unused-vars
+const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+// eslint-disable-next-line no-unused-vars
+const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+// eslint-disable-next-line no-unused-vars
+const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+
+
+
 const modelsMap = {
     'Pending': Enquiry,
     'In-Progress': InProgressBooking,
@@ -150,6 +483,7 @@ const modelsMap = {
     'Completed': CompletedBooking,
     'Cancelled': CancelledBooking
 };
+
 
 mongoose.connect(process.env.MONGO_URI)
     .then(async () => {
@@ -179,6 +513,7 @@ const pinLimiter = rateLimit({
     message: { success: false, message: "Too many incorrect PIN attempts. Please try again after 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
 });
 
 const loginLimiter = rateLimit({
@@ -187,6 +522,25 @@ const loginLimiter = rateLimit({
     message: { success: false, message: "Too many login attempts. Please try again after 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
+});
+
+const refreshLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { success: false, message: "Too many token refresh attempts. Please try again after 15 minutes." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
+});
+
+const financialLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: { success: false, message: "Too many financial operations. Please try again after 15 minutes." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
 });
 
 const enquiryLimiter = rateLimit({
@@ -195,12 +549,8 @@ const enquiryLimiter = rateLimit({
     message: { success: false, message: "Too many enquiry submissions from this IP. Please try again later." },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
 });
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-    console.error("❌ CRITICAL: JWT_SECRET environment variable is missing!");
-    process.exit(1);
-}
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -210,7 +560,7 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ success: false, message: "Access token missing. Please log in." });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'], issuer: env.jwtIssuer, audience: env.jwtAudience }, (err, decoded) => {
         if (err) {
             return res.status(401).json({ success: false, message: "Session expired or invalid. Please log in again." });
         }
@@ -228,42 +578,60 @@ function requireRole(roles) {
     };
 }
 
-// 🔐 Login Route
-app.post('/admin/login', loginLimiter, async (req, res) => {
+// 🔐 Secure Login Route (Supports both /admin/login and /auth/login)
+const handleLogin = async (req, res) => {
     try {
         const { email, password, loginType } = req.body;
-        if (!email || !password || !loginType) {
-            return res.status(400).json({ success: false, message: "Email, password and login type are required." });
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: "Email and password are required." });
         }
 
         const user = await User.findOne({ email: email.toLowerCase().trim() });
         if (!user || !user.isActive) {
-            return res.status(401).json({ success: false, message: "Invalid email or account is inactive." });
+            return res.status(401).json({ success: false, message: "Invalid credentials or account is inactive." });
         }
 
         const isMatch = bcrypt.compareSync(password, user.passwordHash);
         if (!isMatch) {
-            return res.status(401).json({ success: false, message: "Incorrect password." });
+            return res.status(401).json({ success: false, message: "Invalid credentials." });
         }
 
-        // Validate that loginType matches user role
-        if (loginType === 'CEO' && user.role !== 'CEO') {
+        if (loginType && loginType === 'CEO' && user.role !== 'CEO') {
             return res.status(403).json({ success: false, message: "This email does not have CEO access." });
         }
-        if (loginType === 'TEAM' && user.role !== 'Manager') {
+        if (loginType && loginType === 'TEAM' && user.role !== 'Manager') {
             return res.status(403).json({ success: false, message: "This email does not have Team access." });
         }
 
+        const sessionId = crypto.randomBytes(16).toString('hex');
+        const sessionFamilyId = crypto.randomBytes(16).toString('hex');
+        const refreshToken = crypto.randomBytes(40).toString('hex');
+        const tokenHash = hashToken(refreshToken);
+
+        const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        const newSession = new AuthSession({
+            userId: String(user._id),
+            tokenHash,
+            sessionFamilyId,
+            expiresAt: refreshExpiresAt,
+            userAgent: req.headers['user-agent'] || '',
+            ipAddress: req.ip || ''
+        });
+        await newSession.save();
+
         const token = jwt.sign(
-            { id: user._id, email: user.email, role: user.role, name: user.name },
-            JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+            { id: user._id, email: user.email, role: user.role, name: user.name, sessionId },
+            env.jwtSecret,
+            { expiresIn: env.jwtAccessExpiresIn, algorithm: 'HS256', issuer: env.jwtIssuer, audience: env.jwtAudience }
         );
 
         return res.status(200).json({
             success: true,
             token,
+            refreshToken,
             user: {
+                id: user._id,
                 name: user.name,
                 email: user.email,
                 role: user.role
@@ -271,9 +639,101 @@ app.post('/admin/login', loginLimiter, async (req, res) => {
         });
     } catch (error) {
         console.error("❌ Login Error:", error);
-        return res.status(500).json({ success: false, message: "Login server error." });
+        return res.status(500).json({ success: false, message: "Login failed due to a server error." });
+    }
+};
+
+app.post('/admin/login', loginLimiter, handleLogin);
+app.post('/auth/login', loginLimiter, handleLogin);
+
+// 🔄 Refresh Token Rotation Route
+app.post('/auth/refresh', refreshLimiter, async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        if (!refreshToken) {
+            return res.status(400).json({ success: false, message: "Refresh token is required." });
+        }
+
+        const tokenHash = hashToken(refreshToken);
+        const session = await AuthSession.findOne({ tokenHash });
+
+        if (!session || session.revokedAt || session.expiresAt < new Date()) {
+            if (session && !session.revokedAt) {
+                // Token reuse detected - revoke entire session family
+                await AuthSession.updateMany({ sessionFamilyId: session.sessionFamilyId }, { $set: { revokedAt: new Date() } });
+            }
+            return res.status(401).json({ success: false, message: "Invalid or expired refresh session. Please log in again." });
+        }
+
+        // Revoke old refresh token (rotation)
+        session.revokedAt = new Date();
+        await session.save();
+
+        const user = await User.findById(session.userId);
+        if (!user || !user.isActive) {
+            return res.status(401).json({ success: false, message: "User account is inactive or no longer exists." });
+        }
+
+        const newRefreshToken = crypto.randomBytes(40).toString('hex');
+        const newTokenHash = hashToken(newRefreshToken);
+        const newSessionId = crypto.randomBytes(16).toString('hex');
+
+        const nextSession = new AuthSession({
+            userId: String(user._id),
+            tokenHash: newTokenHash,
+            sessionFamilyId: session.sessionFamilyId,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            userAgent: req.headers['user-agent'] || '',
+            ipAddress: req.ip || ''
+        });
+        await nextSession.save();
+
+        const accessToken = jwt.sign(
+            { id: user._id, email: user.email, role: user.role, name: user.name, sessionId: newSessionId },
+            env.jwtSecret,
+            { expiresIn: env.jwtAccessExpiresIn, algorithm: 'HS256', issuer: env.jwtIssuer, audience: env.jwtAudience }
+        );
+
+        return res.status(200).json({
+            success: true,
+            token: accessToken,
+            refreshToken: newRefreshToken,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error("❌ Token Refresh Error:", error);
+        return res.status(500).json({ success: false, message: "Token refresh failed." });
     }
 });
+
+// 🚪 Logout & Token Revocation Routes
+app.post('/auth/logout', async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        if (refreshToken) {
+            const tokenHash = hashToken(refreshToken);
+            await AuthSession.updateOne({ tokenHash }, { $set: { revokedAt: new Date() } });
+        }
+        return res.status(200).json({ success: true, message: "Logged out successfully." });
+    } catch {
+        return res.status(500).json({ success: false, message: "Logout failed." });
+    }
+});
+
+app.post('/auth/logout-all', authenticateToken, async (req, res) => {
+    try {
+        await AuthSession.updateMany({ userId: String(req.user.id), revokedAt: null }, { $set: { revokedAt: new Date() } });
+        return res.status(200).json({ success: true, message: "All sessions revoked successfully." });
+    } catch {
+        return res.status(500).json({ success: false, message: "Revoking all sessions failed." });
+    }
+});
+
 
 // 🔑 Token Verification Route
 app.get('/admin/verify-token', authenticateToken, (req, res) => {
@@ -526,8 +986,12 @@ app.post('/admin/enquiry/update/:id', authenticateToken, requireRole(['CEO', 'Ma
                 ...doc.toObject(),
                 ...updateFields
             };
-            const newRecord = new targetModel(newDocData);
-            updatedData = await newRecord.save();
+            delete newDocData.__v;
+            updatedData = await targetModel.findByIdAndUpdate(
+                req.params.id,
+                { $set: newDocData },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
             await currentModel.findByIdAndDelete(req.params.id);
         } else {
             updatedData = await currentModel.findByIdAndUpdate(
@@ -607,5 +1071,1567 @@ app.post('/admin/enquiry/manual', authenticateToken, requireRole(['CEO', 'Manage
     }
 });
 
+// =========================================================================
+// 📑 PHASE 4 PROMPT 3 — QUOTE API ENDPOINTS
+// =========================================================================
+
+// 1. Fetch all Quote versions for a Lead
+app.get('/admin/quotes/lead/:leadId', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+        const quotes = await Quote.find({ leadId: req.params.leadId }).sort({ version: -1 });
+        return res.status(200).json({ success: true, quotes });
+    } catch (error) {
+        console.error("❌ Fetch Quotes Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch quotes." });
+    }
+});
+
+// 2. Create or revise Quote (Auto-increments Version v1, v2...)
+app.post('/admin/quote/create', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+        const {
+            leadId, packageType, travelDate, travelers, tripDuration,
+            servicesList, marginType, marginValue, discount,
+            inclusions, exclusions, termsNotes, status
+        } = req.body;
+
+        if (!leadId) {
+            return res.status(400).json({ success: false, message: "leadId is required." });
+        }
+
+        // Check existing quote count to increment version
+        const existingQuotes = await Quote.find({ leadId }).sort({ version: -1 });
+        const nextVersion = existingQuotes.length > 0 ? (existingQuotes[0].version + 1) : 1;
+        const quoteNumber = existingQuotes.length > 0
+            ? existingQuotes[0].quoteNumber
+            : `VY-Q-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        // Calculate Financials Server-Side
+        const validServices = Array.isArray(servicesList) ? servicesList : [];
+        const totalVendorCost = validServices.reduce((sum, item) => {
+            const c = Number(item.vendorCost) || 0;
+            const q = Number(item.quantity) || 1;
+            return sum + (c * q);
+        }, 0);
+
+        const numericMargin = Number(marginValue) || 0;
+        let companyMargin = 0;
+        if (marginType === 'PERCENTAGE') {
+            companyMargin = Math.round((totalVendorCost * numericMargin) / 100);
+        } else {
+            companyMargin = numericMargin;
+        }
+
+        const suggestedCustomerPrice = totalVendorCost + companyMargin;
+        const numericDiscount = Number(discount) || 0;
+        const finalCustomerPrice = Math.max(0, suggestedCustomerPrice - numericDiscount);
+        const expectedProfit = finalCustomerPrice - totalVendorCost;
+
+        const newQuote = new Quote({
+            leadId,
+            quoteNumber,
+            version: nextVersion,
+            packageType: packageType || 'COMPLETE',
+            travelDate: travelDate || '',
+            travelers: travelers || '1',
+            tripDuration: tripDuration || '3 Days / 2 Nights',
+            servicesList: validServices,
+            totalVendorCost,
+            marginType: marginType || 'FIXED',
+            marginValue: numericMargin,
+            companyMargin,
+            suggestedCustomerPrice,
+            discount: numericDiscount,
+            finalCustomerPrice,
+            expectedProfit,
+            status: status || 'SENT',
+            inclusions: inclusions || ['AC Transport & Driver', 'Hotel Accommodation', 'VIP Fast-Track Temple Darshan'],
+            exclusions: exclusions || ['Personal Shopping', 'Flight / Train Tickets'],
+            termsNotes: termsNotes || '50% Token advance required to lock dates & hotel booking.',
+            createdBy: `${req.user.role}: ${req.user.name}`
+        });
+
+        await newQuote.save();
+
+        // Update target Lead stage to QUOTED & In-Progress
+        let foundLead = null;
+        for (const model of Object.values(modelsMap)) {
+            foundLead = await model.findById(leadId);
+            if (foundLead) {
+                foundLead.stage = 'QUOTED';
+                foundLead.status = 'In-Progress';
+                foundLead.quoteNumber = quoteNumber;
+                foundLead.quoteStatus = newQuote.status;
+                if (req.user.role === 'CEO') {
+                    foundLead.totalAmount = finalCustomerPrice;
+                    foundLead.remainingAmount = finalCustomerPrice - (foundLead.advanceAmount || 0);
+                }
+                await foundLead.save();
+                break;
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Quote Version ${nextVersion} created successfully!`,
+            quote: newQuote
+        });
+    } catch (error) {
+        console.error("❌ Create Quote Error:", error);
+        return res.status(500).json({ success: false, message: "Quote creation failed." });
+    }
+});
+
+// 3. Update Draft Quote or Status
+app.put('/admin/quote/update/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+        const updated = await Quote.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!updated) {
+            return res.status(404).json({ success: false, message: "Quote not found." });
+        }
+        return res.status(200).json({ success: true, message: "Quote updated successfully!", quote: updated });
+    } catch (error) {
+        console.error("❌ Update Quote Error:", error);
+        return res.status(500).json({ success: false, message: "Quote update failed." });
+    }
+});
+
+// 4. Customer-Facing View Endpoint (Financial Privacy Enforced — Strips Vendor Costs & Profit)
+app.get('/admin/quote/customer-view/:id', async (req, res) => {
+    try {
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+        const quote = await Quote.findById(req.params.id);
+        if (!quote) {
+            return res.status(404).json({ success: false, message: "Quote proposal not found." });
+        }
+
+        // Sanitize internal financial metadata
+        const customerQuote = {
+            quoteNumber: quote.quoteNumber,
+            version: quote.version,
+            packageType: quote.packageType,
+            travelDate: quote.travelDate,
+            travelers: quote.travelers,
+            tripDuration: quote.tripDuration,
+            servicesIncluded: (quote.servicesList || []).map(s => ({
+                category: s.category,
+                serviceName: s.customerDisplayName || s.serviceName || s.category,
+                quantity: s.quantity,
+                unit: s.unit
+            })),
+            finalCustomerPrice: quote.finalCustomerPrice,
+            inclusions: quote.inclusions,
+            exclusions: quote.exclusions,
+            termsNotes: quote.termsNotes,
+            validUntil: quote.validUntil,
+            createdAt: quote.createdAt
+        };
+
+        return res.status(200).json({ success: true, quote: customerQuote });
+    } catch (error) {
+        console.error("❌ Customer Quote View Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to load quote proposal." });
+    }
+});
+
+// =========================================================================
+// 🚖 PHASE 4 PROMPT 4 — BOOKING API ENDPOINTS
+// =========================================================================
+
+// 1. Fetch all Bookings
+app.get('/admin/bookings', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const bookings = await Booking.find().sort({ createdAt: -1 });
+        return res.status(200).json({ success: true, bookings });
+    } catch (error) {
+        console.error("❌ Fetch Bookings Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch bookings." });
+    }
+});
+
+// 2. Fetch Single Booking by ID
+app.get('/admin/booking/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found." });
+        }
+        return res.status(200).json({ success: true, booking });
+    } catch (error) {
+        console.error("❌ Fetch Single Booking Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch booking." });
+    }
+});
+
+// 3. Fetch Booking by Quote ID
+app.get('/admin/booking/quote/:quoteId', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const booking = await Booking.findOne({ quoteId: req.params.quoteId });
+        return res.status(200).json({ success: true, booking });
+    } catch (error) {
+        console.error("❌ Fetch Booking by Quote Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch booking by quote." });
+    }
+});
+
+// 4. Create Booking from Accepted Quote (Prevents duplicate bookings)
+app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const { quoteId } = req.body;
+
+        if (!quoteId) {
+            return res.status(400).json({ success: false, message: "quoteId is required." });
+        }
+
+        const quote = await Quote.findById(quoteId);
+        if (!quote) {
+            return res.status(404).json({ success: false, message: "Accepted quote not found." });
+        }
+
+        if (quote.status !== 'ACCEPTED') {
+            return res.status(400).json({ success: false, message: "Only ACCEPTED quotes can be converted to bookings." });
+        }
+
+        // Prevent Duplicate Bookings for the same Quote
+        const existingBooking = await Booking.findOne({ quoteId });
+        if (existingBooking) {
+            return res.status(400).json({
+                success: false,
+                message: `Booking ${existingBooking.bookingNumber} already exists for this accepted quote.`,
+                booking: existingBooking
+            });
+        }
+
+        // Fetch associated Lead
+        let targetLead = null;
+        for (const model of Object.values(modelsMap)) {
+            targetLead = await model.findById(quote.leadId);
+            if (targetLead) break;
+        }
+
+        let bookingNumber;
+        const year = new Date().getFullYear();
+        let retryBookingCount = 0;
+        while (retryBookingCount < 5) {
+            const count = await Booking.countDocuments();
+            const candidate = `VY-B-${year}-${String(1001 + count + retryBookingCount).padStart(4, '0')}`;
+            const exists = await Booking.findOne({ bookingNumber: candidate });
+            if (!exists) {
+                bookingNumber = candidate;
+                break;
+            }
+            retryBookingCount++;
+        }
+        if (!bookingNumber) {
+            bookingNumber = `VY-B-${year}-${Date.now().toString().slice(-6)}`;
+        }
+
+        // Map Quote services into Preparation Checklist items
+        const services = (quote.servicesList || []).map(s => ({
+            serviceCategory: s.category || 'OTHER',
+            displayName: s.customerDisplayName || s.serviceName || s.category,
+            quantity: s.quantity || 1,
+            unit: s.unit || 'Item',
+            vendorCostSnapshot: s.vendorCost || 0,
+            status: 'NOT_STARTED',
+            assignmentStatus: 'Unassigned'
+        }));
+
+        const preparationChecklist = (quote.servicesList || []).map(s => ({
+            serviceCategory: s.category || 'OTHER',
+            label: `${s.customerDisplayName || s.serviceName || s.category} Required`,
+            required: true,
+            status: 'NOT_STARTED',
+            notes: ''
+        }));
+
+        const totalReq = preparationChecklist.length;
+        const initialReadiness = {
+            totalRequired: totalReq,
+            completed: 0,
+            pending: totalReq,
+            percentage: 0,
+            status: 'INCOMPLETE',
+            missingItems: preparationChecklist.map(c => c.label)
+        };
+
+        const newBooking = new Booking({
+            bookingNumber,
+            leadId: quote.leadId,
+            quoteId: quote._id,
+            customerId: targetLead?._id || '',
+            customerDetails: {
+                name: targetLead?.name || 'Valued Client',
+                phone: targetLead?.mobile || '',
+                email: targetLead?.email || '',
+                city: targetLead?.city || ''
+            },
+            travelDetails: {
+                travelDate: quote.travelDate || targetLead?.date || '',
+                endDate: '',
+                travelers: quote.travelers || targetLead?.travelers || '1',
+                tripDuration: quote.tripDuration || '3 Days / 2 Nights',
+                pickup: targetLead?.pickup || '',
+                destination: targetLead?.destination || 'Varanasi'
+            },
+            packageDetails: {
+                packageType: quote.packageType || 'COMPLETE',
+                packageName: `${quote.packageType || 'Custom'} Travel Package`,
+                finalCustomerPrice: quote.finalCustomerPrice || 0
+            },
+            services,
+            bookingStatus: 'PENDING',
+            tripReadiness: initialReadiness,
+            preparationChecklist,
+            vendorAssignments: [],
+            customerPaymentSummary: {
+                totalAmount: quote.finalCustomerPrice || 0,
+                paidAmount: targetLead?.advanceAmount || 0,
+                remainingAmount: (quote.finalCustomerPrice || 0) - (targetLead?.advanceAmount || 0)
+            },
+            vendorPaymentSummary: {
+                totalExpense: quote.totalVendorCost || 0,
+                paidExpense: 0,
+                remainingExpense: quote.totalVendorCost || 0
+            },
+            activityHistory: [{
+                type: 'CREATE',
+                message: `Booking ${bookingNumber} created from accepted quote ${quote.quoteNumber}.`,
+                timestamp: new Date().toISOString(),
+                performedBy: `${req.user.role}: ${req.user.name}`
+            }]
+        });
+
+        await newBooking.save();
+
+        // Update target Lead stage to WON & status to Confirmed
+        if (targetLead) {
+            targetLead.stage = 'WON';
+            targetLead.status = 'Confirmed';
+            targetLead.bookingNumber = bookingNumber;
+            await targetLead.save();
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Booking ${bookingNumber} created successfully!`,
+            booking: newBooking
+        });
+    } catch (error) {
+        console.error("❌ Create Booking Error:", error);
+        return res.status(500).json({ success: false, message: "Booking creation failed." });
+    }
+});
+
+// 5. Update Booking Lifecycle Status (PATCH /admin/booking/:id/status)
+app.patch('/admin/booking/:id/status', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const { status, remarks } = req.body;
+
+        const validStatuses = ['PENDING', 'PREPARING', 'READY', 'TRIP_STARTED', 'COMPLETED', 'CANCELLED'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, message: "Invalid booking status." });
+        }
+
+        // Validate ObjectId format before hitting MongoDB (prevents 500 crash on invalid strings)
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: "Invalid booking ID format." });
+        }
+
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found." });
+        }
+
+        booking.bookingStatus = status;
+        booking.activityHistory.push({
+            type: 'STATUS_CHANGE',
+            message: `Booking status changed to ${status}${remarks ? `. Note: ${remarks}` : ''}`,
+            timestamp: new Date().toISOString(),
+            performedBy: `${req.user.role}: ${req.user.name}`
+        });
+
+        await booking.save();
+
+        // Sync target Lead status
+        for (const model of Object.values(modelsMap)) {
+            const lead = await model.findById(booking.leadId);
+            if (lead) {
+                if (status === 'TRIP_STARTED') lead.status = 'Trip Started';
+                else if (status === 'COMPLETED') lead.status = 'Completed';
+                else if (status === 'CANCELLED') lead.status = 'Cancelled';
+                else if (status === 'READY' || status === 'PREPARING' || status === 'PENDING') lead.status = 'Confirmed';
+                await lead.save();
+                break;
+            }
+        }
+
+        return res.status(200).json({ success: true, message: `Booking status updated to ${status}`, booking });
+    } catch (error) {
+        console.error("❌ Update Booking Status Error:", error);
+        return res.status(500).json({ success: false, message: "Status update failed." });
+    }
+});
+
+// 6. Update Booking Preparation Checklist Item (PATCH /admin/booking/:id/checklist)
+app.patch('/admin/booking/:id/checklist', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const { serviceCategory, status, notes } = req.body;
+
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found." });
+        }
+
+        const item = booking.preparationChecklist.find(c => c.serviceCategory === serviceCategory);
+        if (item) {
+            item.status = status;
+            if (notes) item.notes = notes;
+            if (status === 'CONFIRMED' || status === 'ARRANGED') {
+                item.completedAt = new Date().toISOString();
+            }
+        }
+
+        // Recompute readiness
+        const checklist = booking.preparationChecklist || [];
+        const required = checklist.filter(c => c.required !== false);
+        const completed = required.filter(c => c.status === 'CONFIRMED' || c.status === 'ARRANGED').length;
+        const total = required.length;
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 100;
+
+        booking.tripReadiness.completed = completed;
+        booking.tripReadiness.percentage = pct;
+        booking.tripReadiness.pending = total - completed;
+
+        if (pct === 100) {
+            booking.tripReadiness.status = 'READY';
+            booking.bookingStatus = 'READY';
+        } else {
+            booking.tripReadiness.status = 'INCOMPLETE';
+            if (booking.bookingStatus === 'PENDING') booking.bookingStatus = 'PREPARING';
+        }
+
+        booking.activityHistory.push({
+            type: 'CHECKLIST_UPDATE',
+            message: `Service ${serviceCategory} marked ${status}.`,
+            timestamp: new Date().toISOString(),
+            performedBy: `${req.user.role}: ${req.user.name}`
+        });
+
+        await booking.save();
+        return res.status(200).json({ success: true, message: "Checklist item updated", booking });
+    } catch (error) {
+        console.error("❌ Update Checklist Error:", error);
+        return res.status(500).json({ success: false, message: "Checklist update failed." });
+    }
+});
+
+// =========================================================================
+// 🏨 PHASE 4 PROMPT 5 — VENDOR & SERVICE MANAGEMENT API ENDPOINTS
+// =========================================================================
+
+// 1. Fetch all Vendors (Supports category, status, search filters)
+app.get('/admin/vendors', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const { category, status, search } = req.query;
+
+        const filter = {};
+        if (category && category !== 'ALL') {
+            filter.category = category.toUpperCase();
+        }
+        if (status && status !== 'ALL') {
+            filter.$or = [
+                { status: status.toUpperCase() },
+                { availabilityStatus: status }
+            ];
+        }
+        if (search) {
+            filter.$or = [
+                { businessName: { $regex: search, $options: 'i' } },
+                { name: { $regex: search, $options: 'i' } },
+                { contactPerson: { $regex: search, $options: 'i' } },
+                { phone: { $regex: search, $options: 'i' } },
+                { mobile: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const vendors = await Vendor.find(filter).sort({ createdAt: -1 });
+        return res.status(200).json({ success: true, vendors });
+    } catch (error) {
+        console.error("❌ Fetch Vendors Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch vendors." });
+    }
+});
+
+// 2. Fetch Vendors by Category
+app.get('/admin/vendors/category/:category', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const category = req.params.category.toUpperCase();
+        const vendors = await Vendor.find({
+            category,
+            $or: [{ status: 'ACTIVE' }, { availabilityStatus: 'Active' }]
+        }).sort({ name: 1 });
+        return res.status(200).json({ success: true, vendors });
+    } catch (error) {
+        console.error("❌ Fetch Vendors by Category Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch vendors by category." });
+    }
+});
+
+// 3. Fetch Single Vendor by ID
+app.get('/admin/vendor/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const vendor = await Vendor.findById(req.params.id);
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: "Vendor not found." });
+        }
+        return res.status(200).json({ success: true, vendor });
+    } catch (error) {
+        console.error("❌ Fetch Single Vendor Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch vendor." });
+    }
+});
+
+// 4. Create Vendor (CEO & Manager allowed)
+app.post('/admin/vendor/create', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const {
+            category,
+            businessName,
+            name,
+            contactPerson,
+            phone,
+            mobile,
+            alternatePhone,
+            email,
+            city,
+            address,
+            baseRate,
+            notes,
+            services,
+            metadata
+        } = req.body;
+
+        const effectiveName = businessName || name;
+        const effectivePhone = phone || mobile;
+
+        if (!category || !effectiveName || !effectivePhone) {
+            return res.status(400).json({ success: false, message: "category, businessName, and phone/mobile are required." });
+        }
+
+        const count = await Vendor.countDocuments();
+        const vendorCode = `VY-V-${String(1001 + count).padStart(4, '0')}`;
+
+        const newVendor = new Vendor({
+            vendorCode,
+            category: category.toUpperCase(),
+            businessName: effectiveName,
+            name: effectiveName,
+            contactPerson: contactPerson || '',
+            phone: effectivePhone,
+            mobile: effectivePhone,
+            alternatePhone: alternatePhone || '',
+            email: email || '',
+            city: city || 'Varanasi',
+            location: city || 'Varanasi',
+            address: address || '',
+            status: 'ACTIVE',
+            availabilityStatus: 'Active',
+            baseRate: Number(baseRate) || 0,
+            notes: notes || '',
+            services: services || [],
+            metadata: metadata || {},
+            performance: {
+                totalAssignments: 0,
+                successfulAssignments: 0,
+                cancelledAssignments: 0,
+                issueCount: 0,
+                onTimeCount: 0,
+                reliabilityScore: null
+            }
+        });
+
+        await newVendor.save();
+        return res.status(200).json({
+            success: true,
+            message: `Vendor ${effectiveName} created successfully!`,
+            vendor: newVendor
+        });
+    } catch (error) {
+        console.error("❌ Create Vendor Error:", error);
+        return res.status(500).json({ success: false, message: "Vendor creation failed." });
+    }
+});
+
+// 5. Update Vendor (PUT /admin/vendor/:id)
+app.put('/admin/vendor/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const updateData = { ...req.body };
+
+        if (updateData.businessName) updateData.name = updateData.businessName;
+        if (updateData.phone) updateData.mobile = updateData.phone;
+
+        const updated = await Vendor.findByIdAndUpdate(req.params.id, updateData, { new: true });
+        if (!updated) {
+            return res.status(404).json({ success: false, message: "Vendor not found." });
+        }
+        return res.status(200).json({ success: true, message: "Vendor updated successfully!", vendor: updated });
+    } catch (error) {
+        console.error("❌ Update Vendor Error:", error);
+        return res.status(500).json({ success: false, message: "Vendor update failed." });
+    }
+});
+
+// 6. Update Vendor Status (PATCH /admin/vendor/:id/status)
+app.patch('/admin/vendor/:id/status', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const { status } = req.body;
+
+        const validStatuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED'];
+        if (!validStatuses.includes(status?.toUpperCase())) {
+            return res.status(400).json({ success: false, message: "Invalid status." });
+        }
+
+        const newStatus = status.toUpperCase();
+        const updated = await Vendor.findByIdAndUpdate(
+            req.params.id,
+            { status: newStatus, availabilityStatus: newStatus === 'ACTIVE' ? 'Active' : 'Inactive' },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, message: "Vendor not found." });
+        }
+
+        return res.status(200).json({ success: true, message: `Vendor status updated to ${newStatus}`, vendor: updated });
+    } catch (error) {
+        console.error("❌ Update Vendor Status Error:", error);
+        return res.status(500).json({ success: false, message: "Vendor status update failed." });
+    }
+});
+
+// 7. Safe Delete Vendor (DELETE /admin/vendor/:id - Archives to INACTIVE if referenced)
+app.delete('/admin/vendor/:id', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+
+        const vendor = await Vendor.findById(req.params.id);
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: "Vendor not found." });
+        }
+
+        // Check if vendor is referenced in any booking
+        const isReferenced = await Booking.exists({
+            $or: [
+                { 'vendorAssignments.plannedVendorId': req.params.id },
+                { 'vendorAssignments.actualVendorId': req.params.id }
+            ]
+        });
+
+        if (isReferenced) {
+            vendor.status = 'INACTIVE';
+            vendor.availabilityStatus = 'Inactive';
+            await vendor.save();
+            return res.status(200).json({
+                success: true,
+                message: "Vendor has active booking history. Safely archived to INACTIVE instead of deleting.",
+                vendor
+            });
+        }
+
+        await Vendor.findByIdAndDelete(req.params.id);
+        return res.status(200).json({ success: true, message: "Vendor deleted successfully." });
+    } catch (error) {
+        console.error("❌ Delete Vendor Error:", error);
+        return res.status(500).json({ success: false, message: "Vendor deletion failed." });
+    }
+});
+
+// =========================================================================
+// 💳 PHASE 4 PROMPT 6 — PAYMENT, EXPENSE & REAL PROFIT API ENDPOINTS
+// =========================================================================
+
+// 1. Fetch Customer Payments for Booking
+app.get('/admin/booking/:bookingId/customer-payments', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
+        const payments = await CustomerPayment.find({ bookingId: req.params.bookingId }).sort({ paymentDate: -1 });
+        return res.status(200).json({ success: true, payments });
+    } catch (error) {
+        console.error("❌ Fetch Customer Payments Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch customer payments." });
+    }
+});
+
+// 2. Record Customer Payment (POST /admin/booking/customer-payment)
+app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const Lead = Enquiry; // Leads and Enquiries use the same collection/schema
+
+        const { bookingId, amount, paymentMethod, paymentDate, referenceNumber, notes } = req.body;
+        const numAmount = Number(amount);
+
+        if (!bookingId || isNaN(numAmount) || numAmount <= 0) {
+            return res.status(400).json({ success: false, message: "Valid bookingId and positive payment amount are required." });
+        }
+
+        const booking = await Booking.findOne({ $or: [{ _id: mongoose.Types.ObjectId.isValid(bookingId) ? bookingId : null }, { bookingNumber: bookingId }] });
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found." });
+        }
+
+        const paymentId = `PAY-CUST-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newPayment = new CustomerPayment({
+            paymentId,
+            bookingId: booking._id.toString(),
+            customerId: booking.customerId || '',
+            amount: numAmount,
+            paymentMethod: paymentMethod || 'UPI',
+            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+            referenceNumber: referenceNumber || '',
+            notes: notes || '',
+            status: 'COMPLETED',
+            receivedBy: `${req.user.role}: ${req.user.name}`
+        });
+        await newPayment.save();
+
+        // Recalculate Customer Payment Summary
+        const allCustomerPayments = await CustomerPayment.find({ bookingId: booking._id.toString() });
+        const packagePrice = booking.packageDetails?.finalCustomerPrice || 0;
+        const totalPaid = allCustomerPayments.reduce((sum, p) => sum + p.amount, 0);
+        const customerDue = packagePrice - totalPaid;
+
+        let paymentStatus = 'UNPAID';
+        if (totalPaid === 0) paymentStatus = 'UNPAID';
+        else if (totalPaid > 0 && totalPaid < packagePrice) paymentStatus = 'PARTIAL';
+        else if (totalPaid === packagePrice) paymentStatus = 'PAID';
+        else if (totalPaid > packagePrice) paymentStatus = 'OVERPAID';
+
+        booking.customerPaymentSummary = {
+            packagePrice,
+            totalPaid,
+            customerDue: Math.max(0, customerDue),
+            paymentStatus
+        };
+
+        booking.activityHistory.push({
+            type: 'PAYMENT_RECORDED',
+            message: `Customer Payment Recorded: ₹${numAmount.toLocaleString('en-IN')} via ${paymentMethod || 'UPI'}${referenceNumber ? ` (Ref: ${referenceNumber})` : ''}`,
+            timestamp: new Date().toISOString(),
+            performedBy: `${req.user.role}: ${req.user.name}`
+        });
+
+        await booking.save();
+
+        // Update associated lead
+        if (booking.leadId) {
+            await Lead.findByIdAndUpdate(booking.leadId, {
+                paymentStatus,
+                advancePaid: totalPaid
+            });
+        }
+
+        // ⚡ Trigger PAYMENT_RECEIVED Automation Event asynchronously
+        triggerAutomationEvent('PAYMENT_RECEIVED', {
+            paymentId: newPayment.paymentId,
+            bookingId: booking.bookingNumber,
+            customerName: booking.customerDetails?.name || 'Valued Customer',
+            mobile: booking.customerDetails?.mobile || '',
+            paidAmount: numAmount,
+            amountDue: Math.max(0, customerDue)
+        }, `PAYMENT_RECEIVED:${newPayment.paymentId}`).catch(err => console.error("⚠️ Payment automation trigger error:", err.message));
+
+        return res.status(200).json({
+            success: true,
+            message: `Payment of ₹${numAmount.toLocaleString('en-IN')} recorded successfully!`,
+            payment: newPayment,
+            customerPaymentSummary: booking.customerPaymentSummary
+        });
+    } catch (error) {
+        console.error("❌ Record Customer Payment Error:", error);
+        return res.status(500).json({ success: false, message: "Customer payment recording failed." });
+    }
+});
+
+// 3. Fetch Vendor Payments for Booking
+app.get('/admin/booking/:bookingId/vendor-payments', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
+        const payments = await VendorPayment.find({ bookingId: req.params.bookingId }).sort({ paymentDate: -1 });
+        return res.status(200).json({ success: true, payments });
+    } catch (error) {
+        console.error("❌ Fetch Vendor Payments Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch vendor payments." });
+    }
+});
+
+// 4. Record Vendor Payment (POST /admin/booking/vendor-payment - CEO/Authorized)
+app.post('/admin/booking/vendor-payment', financialLimiter, authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+
+        const { bookingId, vendorId, vendorNameSnapshot, serviceCategory, amount, paymentMethod, paymentDate, referenceNumber, notes } = req.body;
+        const numAmount = Number(amount);
+
+        if (!bookingId || !vendorId || isNaN(numAmount) || numAmount <= 0) {
+            return res.status(400).json({ success: false, message: "bookingId, vendorId and positive payment amount are required." });
+        }
+
+        const booking = await Booking.findOne({ $or: [{ _id: mongoose.Types.ObjectId.isValid(bookingId) ? bookingId : null }, { bookingNumber: bookingId }] });
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found." });
+        }
+
+        const paymentId = `PAY-VEND-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newPayment = new VendorPayment({
+            paymentId,
+            bookingId: booking._id.toString(),
+            vendorId,
+            vendorNameSnapshot: vendorNameSnapshot || 'Vendor',
+            serviceCategory: serviceCategory || 'OTHER',
+            amount: numAmount,
+            paymentMethod: paymentMethod || 'BANK_TRANSFER',
+            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+            referenceNumber: referenceNumber || '',
+            notes: notes || '',
+            status: 'COMPLETED',
+            paidBy: `${req.user.role}: ${req.user.name}`
+        });
+        await newPayment.save();
+
+        // Recalculate Vendor Payment Summary
+        const allVendorPayments = await VendorPayment.find({ bookingId: booking._id.toString() });
+        const plannedVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.plannedCost || 0), 0);
+        const actualVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.actualCost || v.plannedCost || 0), 0) || plannedVendorCost;
+        const totalPaidToVendors = allVendorPayments.reduce((sum, p) => sum + p.amount, 0);
+        const vendorDue = actualVendorCost - totalPaidToVendors;
+
+        let paymentStatus = 'NOT_PAID';
+        if (totalPaidToVendors === 0) paymentStatus = 'NOT_PAID';
+        else if (totalPaidToVendors > 0 && totalPaidToVendors < actualVendorCost) paymentStatus = 'PARTIALLY_PAID';
+        else if (totalPaidToVendors === actualVendorCost) paymentStatus = 'PAID';
+        else if (totalPaidToVendors > actualVendorCost) paymentStatus = 'OVERPAID';
+
+        booking.vendorPaymentSummary = {
+            plannedVendorCost,
+            actualVendorCost,
+            totalPaidToVendors,
+            vendorDue: Math.max(0, vendorDue),
+            paymentStatus
+        };
+
+        booking.activityHistory.push({
+            type: 'VENDOR_PAYMENT_RECORDED',
+            message: `Vendor Payment Recorded: ₹${numAmount.toLocaleString('en-IN')} to ${vendorNameSnapshot || 'Vendor'} (${serviceCategory || 'Service'})`,
+            timestamp: new Date().toISOString(),
+            performedBy: `${req.user.role}: ${req.user.name}`
+        });
+
+        await booking.save();
+
+        return res.status(200).json({
+            success: true,
+            message: `Vendor payment of ₹${numAmount.toLocaleString('en-IN')} recorded successfully!`,
+            payment: newPayment,
+            vendorPaymentSummary: booking.vendorPaymentSummary
+        });
+    } catch (error) {
+        console.error("❌ Record Vendor Payment Error:", error);
+        return res.status(500).json({ success: false, message: "Vendor payment recording failed." });
+    }
+});
+
+// 5. Fetch Business Expenses (GET /admin/expenses)
+app.get('/admin/expenses', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
+        const { bookingId, category, search } = req.query;
+
+        const filter = {};
+        if (bookingId) filter.bookingId = bookingId;
+        if (category && category !== 'ALL') filter.expenseCategory = category.toUpperCase();
+        if (search) {
+            filter.$or = [
+                { description: { $regex: search, $options: 'i' } },
+                { referenceNumber: { $regex: search, $options: 'i' } },
+                { notes: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const expenses = await BusinessExpense.find(filter).sort({ expenseDate: -1 });
+        return res.status(200).json({ success: true, expenses });
+    } catch (error) {
+        console.error("❌ Fetch Expenses Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch expenses." });
+    }
+});
+
+// 6. Record Business Expense (POST /admin/expense/create)
+app.post('/admin/expense/create', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+
+        const { bookingId, expenseCategory, description, amount, expenseDate, paymentMethod, referenceNumber, notes } = req.body;
+        const numAmount = Number(amount);
+
+        if (!expenseCategory || isNaN(numAmount) || numAmount <= 0) {
+            return res.status(400).json({ success: false, message: "expenseCategory and positive amount are required." });
+        }
+
+        const expenseId = `EXP-${Date.now()}`;
+        const newExpense = new BusinessExpense({
+            expenseId,
+            bookingId: bookingId || '',
+            expenseCategory: expenseCategory.toUpperCase(),
+            description: description || '',
+            amount: numAmount,
+            expenseDate: expenseDate || new Date().toISOString().split('T')[0],
+            paymentMethod: paymentMethod || 'UPI',
+            referenceNumber: referenceNumber || '',
+            notes: notes || '',
+            createdBy: `${req.user.role}: ${req.user.name}`
+        });
+        await newExpense.save();
+
+        if (bookingId) {
+            const booking = await Booking.findOne({ $or: [{ _id: mongoose.Types.ObjectId.isValid(bookingId) ? bookingId : null }, { bookingNumber: bookingId }] });
+            if (booking) {
+                booking.activityHistory.push({
+                    type: 'EXPENSE_RECORDED',
+                    message: `Business Expense Added: ₹${numAmount.toLocaleString('en-IN')} (${expenseCategory})`,
+                    timestamp: new Date().toISOString(),
+                    performedBy: `${req.user.role}: ${req.user.name}`
+                });
+                await booking.save();
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Expense of ₹${numAmount.toLocaleString('en-IN')} recorded successfully!`,
+            expense: newExpense
+        });
+    } catch (error) {
+        console.error("❌ Record Expense Error:", error);
+        return res.status(500).json({ success: false, message: "Expense recording failed." });
+    }
+});
+
+// 7. Get Real Profit & Financial Summary for Booking (Role Enforced)
+app.get('/admin/booking/:bookingId/financial-summary', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
+        const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
+        const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
+
+        const booking = await Booking.findOne({ $or: [{ _id: mongoose.Types.ObjectId.isValid(req.params.bookingId) ? req.params.bookingId : null }, { bookingNumber: req.params.bookingId }] });
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found." });
+        }
+
+        const bId = booking._id.toString();
+        const customerPayments = await CustomerPayment.find({ bookingId: bId });
+        const packagePrice = booking.packageDetails?.finalCustomerPrice || 0;
+        const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
+        const customerDue = packagePrice - totalPaid;
+
+        let customerStatus = 'UNPAID';
+        if (totalPaid === 0) customerStatus = 'UNPAID';
+        else if (totalPaid > 0 && totalPaid < packagePrice) customerStatus = 'PARTIAL';
+        else if (totalPaid === packagePrice) customerStatus = 'PAID';
+        else if (totalPaid > packagePrice) customerStatus = 'OVERPAID';
+
+        // SANITIZED VIEW FOR MANAGER ROLE: Strict Financial Privacy Enforcement
+        if (req.user.role !== 'CEO') {
+            return res.status(200).json({
+                success: true,
+                role: req.user.role,
+                customerPaymentSummary: {
+                    packagePrice,
+                    totalPaid,
+                    customerDue: Math.max(0, customerDue),
+                    paymentStatus: customerStatus
+                },
+                customerPayments
+            });
+        }
+
+        // FULL CEO FINANCIAL BREAKDOWN
+        const vendorPayments = await VendorPayment.find({ bookingId: bId });
+        const expenses = await BusinessExpense.find({ bookingId: bId });
+
+        const plannedVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.plannedCost || 0), 0);
+        const actualVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.actualCost || v.plannedCost || 0), 0) || plannedVendorCost;
+        const vendorPaid = vendorPayments.reduce((sum, p) => sum + p.amount, 0);
+        const vendorDue = actualVendorCost - vendorPaid;
+
+        const expectedProfit = packagePrice - plannedVendorCost;
+        const actualRevenue = totalPaid;
+        const actualVendorExpense = vendorPaid > 0 ? vendorPaid : actualVendorCost;
+        const additionalBusinessExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+        const commissionIncome = booking.shoppingCommission?.expectedCommission || 0;
+
+        const actualProfit = actualRevenue - actualVendorExpense - additionalBusinessExpense + commissionIncome;
+
+        let profitStatus = 'ESTIMATED';
+        if (customerPayments.length === 0) profitStatus = 'ESTIMATED';
+        else if (actualProfit < 0) profitStatus = 'LOSS';
+        else if (actualProfit < expectedProfit) profitStatus = 'LOWER_THAN_EXPECTED';
+        else profitStatus = 'ON_TRACK';
+
+        const cashPosition = {
+            moneyReceived: totalPaid,
+            commissionIncome,
+            vendorPaid,
+            expensesPaid: additionalBusinessExpense,
+            currentNetCash: totalPaid + commissionIncome - vendorPaid - additionalBusinessExpense
+        };
+
+        return res.status(200).json({
+            success: true,
+            role: 'CEO',
+            customerPaymentSummary: { packagePrice, totalPaid, customerDue: Math.max(0, customerDue), paymentStatus: customerStatus },
+            vendorPaymentSummary: { plannedVendorCost, actualVendorCost, totalPaidToVendors: vendorPaid, vendorDue: Math.max(0, vendorDue), paymentStatus: vendorPaid === 0 ? 'NOT_PAID' : (vendorPaid < actualVendorCost ? 'PARTIALLY_PAID' : 'PAID') },
+            profitSummary: { expectedProfit, actualRevenue, actualVendorExpense, additionalBusinessExpense, commissionIncome, actualProfit, profitStatus },
+            cashPosition,
+            customerPayments,
+            vendorPayments,
+            expenses
+        });
+    } catch (error) {
+        console.error("❌ Fetch Financial Summary Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch financial summary." });
+    }
+});
+
+// =========================================================================
+// 📊 PHASE 4 PROMPT 7 — ROLE-BASED DASHBOARD INTELLIGENCE ENDPOINTS
+// =========================================================================
+
+// 1. MANAGER OPERATIONS CENTER ENDPOINT (CEO & Manager Allowed)
+app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const Lead = Enquiry; // Leads and Enquiries use the same collection/schema
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+
+        const bookings = await Booking.find().sort({ createdAt: -1 });
+        const leads = await Lead.find().sort({ createdAt: -1 });
+        const quotes = await Quote.find().sort({ createdAt: -1 });
+
+        // Sanitized Operational Summary (No vendor costs, actual profits, or margins)
+        const sanitizedBookings = bookings.map(b => ({
+            _id: b._id,
+            bookingNumber: b.bookingNumber,
+            customerDetails: b.customerDetails,
+            travelDetails: b.travelDetails,
+            packageDetails: {
+                packageType: b.packageDetails?.packageType,
+                packageName: b.packageDetails?.packageName,
+                finalCustomerPrice: b.packageDetails?.finalCustomerPrice
+            },
+            bookingStatus: b.bookingStatus,
+            tripReadiness: b.tripReadiness,
+            preparationChecklist: b.preparationChecklist,
+            customerPaymentSummary: b.customerPaymentSummary
+        }));
+
+        return res.status(200).json({
+            success: true,
+            role: req.user.role,
+            bookings: sanitizedBookings,
+            leads,
+            quotes
+        });
+    } catch (error) {
+        console.error("❌ Fetch Manager Dashboard Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch manager dashboard." });
+    }
+});
+
+// 2. CEO COMMAND CENTER ENDPOINT (CEO ROLE ONLY - 403 FORBIDDEN FOR MANAGER)
+app.get('/admin/dashboard/ceo', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const Lead = Enquiry; // Leads and Enquiries use the same collection/schema
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+        const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+        const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
+        const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
+        const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
+
+        const bookings = await Booking.find().sort({ createdAt: -1 });
+        const leads = await Lead.find().sort({ createdAt: -1 });
+        const quotes = await Quote.find().sort({ createdAt: -1 });
+        const vendors = await Vendor.find().sort({ createdAt: -1 });
+        const customerPayments = await CustomerPayment.find().sort({ createdAt: -1 });
+        const vendorPayments = await VendorPayment.find().sort({ createdAt: -1 });
+        const expenses = await BusinessExpense.find().sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            role: 'CEO',
+            bookings,
+            leads,
+            quotes,
+            vendors,
+            customerPayments,
+            vendorPayments,
+            expenses
+        });
+    } catch (error) {
+        console.error("❌ Fetch CEO Dashboard Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch CEO dashboard." });
+    }
+});
+
+
+
+
+
+
+// =========================================================================
+// ⚡ PHASE 5 PROMPT 2 — WHATSAPP + EMAIL AUTOMATION ENGINE ENDPOINTS
+// =========================================================================
+
+// 1. Fetch Automation Settings & Metadata
+app.get('/admin/automation/settings', authenticateToken, requireRole(['CEO', 'Manager']), (req, res) => {
+    return res.status(200).json({
+        success: true,
+        automationEnabled: getAutomationEnabled(),
+        mode: process.env.NODE_ENV || 'development',
+        whatsappConfigured: Boolean(process.env.WHATSAPP_API_KEY && process.env.WHATSAPP_PHONE_NUMBER_ID),
+        emailConfigured: Boolean(process.env.EMAIL_USER),
+        providerName: getNotificationProvider().name
+    });
+});
+
+// 2. Update Automation Settings (CEO Only)
+app.put('/admin/automation/settings', authenticateToken, requireRole(['CEO']), (req, res) => {
+    const { enabled } = req.body;
+    setAutomationEnabled(enabled);
+    return res.status(200).json({
+        success: true,
+        message: `Automation engine master switch set to ${enabled ? 'ON' : 'OFF'}`,
+        automationEnabled: getAutomationEnabled()
+    });
+});
+
+// 3. Fetch Message Templates
+app.get('/admin/automation/templates', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const MessageTemplate = mongoose.model('MessageTemplate', MessageTemplateSchema, 'message_templates');
+        const customTemplates = await MessageTemplate.find();
+        const merged = [...DEFAULT_TEMPLATES];
+
+        customTemplates.forEach(ct => {
+            const idx = merged.findIndex(t => t.templateId === ct.templateId);
+            if (idx >= 0) merged[idx] = ct.toObject();
+            else merged.push(ct.toObject());
+        });
+
+        return res.status(200).json({ success: true, templates: merged });
+    } catch (error) {
+        console.error("❌ Fetch Templates Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch message templates." });
+    }
+});
+
+// 4. Create Message Template (CEO Only)
+app.post('/admin/automation/templates', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const MessageTemplate = mongoose.model('MessageTemplate', MessageTemplateSchema, 'message_templates');
+        const { templateId, name, category, channel, subject, body, variables } = req.body;
+
+        if (!templateId || !name || !body) {
+            return res.status(400).json({ success: false, message: "templateId, name, and body are required." });
+        }
+
+        const template = new MessageTemplate({
+            templateId: templateId.trim().toUpperCase(),
+            name: name.trim(),
+            category: category || 'GENERAL',
+            channel: channel || 'WHATSAPP',
+            subject: subject || '',
+            body,
+            variables: variables || [],
+            isSystemDefault: false,
+            updatedBy: `${req.user.role}: ${req.user.name}`
+        });
+        await template.save();
+
+        return res.status(201).json({ success: true, message: "Message template created successfully.", template });
+    } catch (error) {
+        console.error("❌ Create Template Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to create message template." });
+    }
+});
+
+// 5. Update Message Template (CEO Only)
+app.put('/admin/automation/templates/:id', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const MessageTemplate = mongoose.model('MessageTemplate', MessageTemplateSchema, 'message_templates');
+        const { name, category, channel, subject, body, variables } = req.body;
+
+        const targetId = req.params.id;
+        const updated = await MessageTemplate.findOneAndUpdate(
+            { $or: [{ _id: mongoose.Types.ObjectId.isValid(targetId) ? targetId : null }, { templateId: targetId }] },
+            { name, category, channel, subject, body, variables, updatedBy: `${req.user.role}: ${req.user.name}` },
+            { new: true, upsert: true }
+        );
+
+        return res.status(200).json({ success: true, message: "Message template updated successfully.", template: updated });
+    } catch (error) {
+        console.error("❌ Update Template Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update message template." });
+    }
+});
+
+// 6. Fetch Automation Audit Logs (CEO & Manager)
+app.get('/admin/automation/logs', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const { status, eventType } = req.query;
+        const filter = {};
+        if (status && status !== 'ALL') filter.status = status;
+        if (eventType && eventType !== 'ALL') filter.eventType = eventType;
+
+        const logs = await getAutomationLogs(filter);
+        return res.status(200).json({ success: true, logs });
+    } catch (error) {
+        console.error("❌ Fetch Automation Logs Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch automation logs." });
+    }
+});
+
+// 7. Manual Retry Trigger for Failed Log (CEO & Manager)
+app.post('/admin/automation/retry/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const result = await manualRetryLog(req.params.id);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("❌ Manual Retry Error:", error);
+        return res.status(400).json({ success: false, message: error.message || "Manual retry failed." });
+    }
+});
+
+// 8. Message Preview Generator (CEO & Manager)
+app.post('/admin/automation/preview', authenticateToken, requireRole(['CEO', 'Manager']), (req, res) => {
+    try {
+        const { subject, body, data } = req.body;
+        const renderedSubject = renderTemplate(subject || '', data || {});
+        const renderedBody = renderTemplate(body || '', data || {});
+
+        return res.status(200).json({
+            success: true,
+            renderedSubject,
+            renderedBody
+        });
+    } catch (error) {
+        console.error("❌ Message Preview Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to render message preview." });
+    }
+});
+
+// =========================================================================
+// 📄 PHASE 5 PROMPT 3 — INVOICE, TRAVEL VOUCHER & PDF DOCUMENT ENDPOINTS
+// =========================================================================
+
+// 1. Generate Document Endpoint (CEO & Manager)
+app.post('/admin/documents/generate', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const { documentType, bookingId, quoteId, customerId, customData, taxMode } = req.body;
+        if (!documentType) {
+            return res.status(400).json({ success: false, message: "documentType is required." });
+        }
+
+        const document = await generateDocument({
+            documentType,
+            bookingId,
+            quoteId,
+            customerId,
+            user: req.user,
+            customData,
+            taxMode
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: `${documentType} generated successfully.`,
+            document
+        });
+    } catch (error) {
+        console.error("❌ Document Generation Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to generate document." });
+    }
+});
+
+// 2. Fetch Documents List Endpoint (CEO & Manager)
+app.get('/admin/documents', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const { bookingId, quoteId, documentType, status } = req.query;
+        let docs = await getDocuments({ bookingId, quoteId, documentType, status });
+
+        // Filter out INTERNAL_FINANCIAL_REPORT for Manager
+        if (req.user.role !== 'CEO') {
+            docs = docs.filter(d => d.documentType !== 'INTERNAL_FINANCIAL_REPORT');
+        }
+
+        return res.status(200).json({ success: true, documents: docs });
+    } catch (error) {
+        console.error("❌ Fetch Documents Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch documents." });
+    }
+});
+
+// 3. Fetch Single Document Metadata & Stream File (CEO & Manager)
+app.get('/admin/documents/:documentId', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const doc = await getDocumentById(req.params.documentId, req.user.role);
+        if (!doc) {
+            return res.status(404).json({ success: false, message: "Document not found." });
+        }
+
+        if (req.query.download === 'true') {
+            const buffer = readDocumentFile(doc.fileName);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${doc.fileName}"`);
+            return res.send(buffer);
+        }
+
+        return res.status(200).json({ success: true, document: doc });
+    } catch (error) {
+        console.error("❌ Get Document Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to fetch document." });
+    }
+});
+
+// 4. Regenerate Document Version Endpoint (CEO & Manager)
+app.post('/admin/documents/:documentId/regenerate', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const newDoc = await regenerateDocument(req.params.documentId, req.user);
+        return res.status(200).json({
+            success: true,
+            message: "Document regenerated with updated version.",
+            document: newDoc
+        });
+    } catch (error) {
+        console.error("❌ Regenerate Document Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to regenerate document." });
+    }
+});
+
+// 5. Create Secure Temporary Share Link Endpoint (CEO & Manager)
+app.post('/admin/documents/:documentId/share', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const { expiresInHours, maxDownloads } = req.body;
+        const doc = await getDocumentById(req.params.documentId, req.user.role);
+        if (!doc) {
+            return res.status(404).json({ success: false, message: "Document not found." });
+        }
+
+        const tokenObj = await createDocumentToken(doc.documentId, {
+            expiresInHours: Number(expiresInHours) || 24,
+            maxDownloads: Number(maxDownloads) || 5
+        });
+
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const secureShareUrl = `${baseUrl}/public/document/${tokenObj.rawToken}`;
+
+        return res.status(200).json({
+            success: true,
+            secureShareUrl,
+            expiresAt: tokenObj.expiresAt,
+            maxDownloads: tokenObj.maxDownloads
+        });
+    } catch (error) {
+        console.error("❌ Document Share Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to generate share link." });
+    }
+});
+
+// 6. Soft Archive Document Endpoint (CEO Only)
+app.post('/admin/documents/:documentId/archive', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const archived = await archiveDocument(req.params.documentId, req.user.role);
+        return res.status(200).json({
+            success: true,
+            message: "Document archived successfully.",
+            document: archived
+        });
+    } catch (error) {
+        console.error("❌ Archive Document Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to archive document." });
+    }
+});
+
+// 7. Public Secure Token Download Endpoint (Unauthenticated Public Endpoint)
+app.get('/public/document/:token', async (req, res) => {
+    try {
+        const rawToken = req.params.token;
+        const docId = await validateAccessToken(rawToken);
+        const doc = await getDocumentById(docId, 'Public');
+
+        if (!doc) {
+            return res.status(404).json({ success: false, message: "Associated document not found." });
+        }
+
+        const buffer = readDocumentFile(doc.fileName);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${doc.fileName}"`);
+        return res.send(buffer);
+    } catch (error) {
+        console.error("❌ Public Access Token Error:", error);
+        return res.status(400).json({ success: false, message: error.message || "Invalid or expired document link." });
+    }
+});
+
+// =========================================================================
+// 📁 PHASE 5 PROMPT 4 — UNIFIED FILE ATTACHMENT & STORAGE ENDPOINTS
+// =========================================================================
+
+// 1. Upload File Attachment Endpoint (CEO & Manager)
+app.post('/admin/files/upload', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const { base64Data, originalName, mimeType, entityType, entityId } = req.body;
+        if (!base64Data || !originalName) {
+            return res.status(400).json({ success: false, message: "base64Data and originalName are required." });
+        }
+
+        const buffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
+        const attachment = await uploadFileAttachment({
+            buffer,
+            originalName,
+            mimeType: mimeType || 'application/pdf',
+            entityType: entityType || 'GENERAL',
+            entityId: entityId || 'GLOBAL',
+            uploadedBy: req.user.name || req.user.role
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "File attachment uploaded successfully.",
+            attachment
+        });
+    } catch (error) {
+        console.error("❌ File Upload Error:", error);
+        const statusCode = error.statusCode || (error.message.includes('Unsupported') || error.message.includes('exceeds') || error.message.includes('required') ? 400 : 500);
+        return res.status(statusCode).json({ success: false, message: error.message || "Failed to upload file." });
+    }
+});
+
+// 2. Fetch File Attachments List for Entity (CEO & Manager)
+app.get('/admin/files', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const { entityType, entityId } = req.query;
+        const attachments = await getAttachments({ entityType, entityId });
+        return res.status(200).json({ success: true, attachments });
+    } catch (error) {
+        console.error("❌ Fetch Attachments Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch attachments." });
+    }
+});
+
+// 3. Download / Stream Attachment File (Authorized Access Control)
+app.get('/admin/files/:attachmentId', authenticateToken, async (req, res) => {
+    try {
+        const attachment = await getAttachmentById(req.params.attachmentId);
+        if (!attachment) {
+            return res.status(404).json({ success: false, message: "Attachment record not found." });
+        }
+
+        // Enforce file attachment role & entity permission checks
+        verifyFileAccessPermission(attachment, req.user);
+
+        const buffer = await getAttachmentBuffer(req.params.attachmentId);
+        res.setHeader('Content-Type', attachment.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${attachment.originalName}"`);
+        return res.send(buffer);
+    } catch (error) {
+        console.error("❌ Attachment Access Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to access file." });
+    }
+});
+
+// 4. Delete File Attachment Endpoint (CEO & Manager)
+app.delete('/admin/files/:attachmentId', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const attachment = await getAttachmentById(req.params.attachmentId);
+        if (!attachment) {
+            return res.status(404).json({ success: false, message: "Attachment not found." });
+        }
+
+        verifyFileAccessPermission(attachment, req.user);
+
+        const deleted = await deleteAttachment(req.params.attachmentId);
+        return res.status(200).json({
+            success: true,
+            message: "File attachment deleted successfully.",
+            deleted
+        });
+    } catch (error) {
+        console.error("❌ Delete Attachment Error:", error);
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to delete attachment." });
+    }
+});
+
+// Production Static SPA Serving (when dist/ directory exists)
+const distPath = path.join(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.use((req, res, next) => {
+        if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/admin') && !req.path.startsWith('/health') && !req.path.startsWith('/ready') && !req.path.startsWith('/auth')) {
+            return res.sendFile(path.join(distPath, 'index.html'));
+        }
+        next();
+    });
+}
+
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`🚀 Local Engine active on http://localhost:${PORT}`));
+const { disconnectDatabase } = require('./config/database');
+let activeHttpServer = null;
+
+// Connect Database before starting listener when run directly
+if (process.env.NODE_ENV !== 'test' && require.main === module) {
+    connectDatabase().then(() => {
+        activeHttpServer = app.listen(PORT, () => console.log(`🚀 Production Operating System active on port ${PORT}`));
+    });
+}
+
+// Graceful process signal handling
+const handleGracefulShutdown = async (signal) => {
+    console.log(`\n🛑 [Server] Received ${signal}. Initiating graceful shutdown...`);
+    if (activeHttpServer) {
+        await new Promise((resolve) => activeHttpServer.close(resolve));
+        console.log('✅ [Server] HTTP server listener closed.');
+    }
+    await disconnectDatabase();
+    console.log('✅ [Server] Graceful shutdown complete. Exiting process.');
+    process.exit(0);
+};
+
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
+
+module.exports = app;

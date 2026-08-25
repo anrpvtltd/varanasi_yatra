@@ -8,26 +8,33 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+backend/node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Environment & Secrets
+.env
+.env.production
+.env.staging
+.env*.local
+backend/.env
+backend/.env.production
+backend/.env.staging
+
+# Local Uploads & Backups & Test Artifacts
+uploads/
+backend/uploads/
+backups/
+artifacts/
+scratch/
+*.pdf
+*.tar.gz
+
+# Editor & System directories
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-
-.env
-.env.production
-.env*.local
-backend/.env
-node_modules
-backend/node_modules
 .vercel
+.gemini

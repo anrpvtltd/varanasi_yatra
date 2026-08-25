@@ -1,0 +1,48 @@
+# =========================================================================
+# VARANASI YATRA TRAVEL OPERATING SYSTEM — PRODUCTION DOCKER COMPOSE
+# Recommended Architecture: App Container + Managed MongoDB Atlas (or internal Mongo)
+# =========================================================================
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: varanasi_yatra_production_app
+    restart: always
+    ports:
+      - "${PORT:-5001}:5001"
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      MONGODB_URI: ${MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://admin.varanasiyatra.com,https://varanasiyatra.com}
+      AUTOMATION_ENABLED: ${AUTOMATION_ENABLED:-true}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-ProductionProvider}
+      META_WHATSAPP_ACCESS_TOKEN: ${META_WHATSAPP_ACCESS_TOKEN:-}
+      META_WHATSAPP_PHONE_NUMBER_ID: ${META_WHATSAPP_PHONE_NUMBER_ID:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-SMTP}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-support@varanasiyatra.com}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-LocalStorageProvider}
+      STORAGE_LOCAL_PATH: ${STORAGE_LOCAL_PATH:-/app/backend/uploads/documents}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - app_uploads:/app/backend/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  app_uploads:
+    driver: local

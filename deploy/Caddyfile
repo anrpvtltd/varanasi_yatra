@@ -1,0 +1,63 @@
+# =========================================================================
+# VARANASI YATRA TRAVEL OS — CADDY REVERSE PROXY CONFIGURATION
+# Automatic HTTPS via Let's Encrypt / ZeroSSL
+# Replace your-domain.com with your actual production domain
+# =========================================================================
+
+{
+    email support@varanasiyatra.com
+}
+
+# API & Backend Subdomain
+api.varanasiyatra.com {
+    request_body {
+        max_size 10MB
+    }
+
+    reverse_proxy app:5001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        health_uri /health
+        health_interval 15s
+        health_timeout 3s
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/api_access.log
+        format json
+    }
+}
+
+# Frontend Admin / Main Domain
+admin.varanasiyatra.com, varanasiyatra.com {
+    reverse_proxy app:5001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/frontend_access.log
+        format json
+    }
+}

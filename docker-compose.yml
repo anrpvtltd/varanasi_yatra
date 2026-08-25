@@ -1,0 +1,41 @@
+# =========================================================================
+# VARANASI YATRA TRAVEL OPERATING SYSTEM — SELF-HOSTED DOCKER COMPOSE
+# NOTE: For Cloud Production deployments, we recommend using Managed MongoDB
+# (e.g., MongoDB Atlas) and deploying the App container to Cloud Run / VPS.
+# =========================================================================
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: varanasi_yatra_app
+    ports:
+      - "5001:5001"
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      MONGODB_URI: mongodb://mongodb:27017/varanasi_yatra
+      JWT_SECRET: ${JWT_SECRET:-production_super_secure_jwt_access_secret_key_32chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-production_super_secure_jwt_refresh_secret_key_32chars}
+      STORAGE_PROVIDER: LocalStorageProvider
+      MAX_FILE_SIZE_MB: 10
+      LOG_LEVEL: info
+    depends_on:
+      - mongodb
+    restart: always
+
+  mongodb:
+    image: mongo:7.0
+    container_name: varanasi_yatra_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: always
+
+volumes:
+  mongo_data:
+    driver: local

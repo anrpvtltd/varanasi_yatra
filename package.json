@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:prod": "node backend/server.js",
+    "smoke:staging": "node scripts/staging-smoke-test.js",
+    "benchmarks": "node scripts/load/realistic-benchmarks.cjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.2",

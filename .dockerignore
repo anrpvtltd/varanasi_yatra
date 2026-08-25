@@ -1,0 +1,15 @@
+node_modules
+backend/node_modules
+dist
+backups
+uploads
+backend/uploads
+.env
+.env.*
+.git
+.github
+scratch
+.gemini
+artifacts
+npm-debug.log
+*.tar.gz
