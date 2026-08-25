@@ -218,6 +218,8 @@ export default function Footer() {
             <div className="max-w-7xl mx-auto pt-6 border-t border-stone-900 text-center flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-stone-600 font-medium select-none">
                 <p>© 2026 Banaras Yatra Travel & Tours. All Rights Reserved.</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
+                    <a href="/operations" className="text-stone-500 hover:text-orange-400 font-bold transition-colors">Staff Portal</a>
+                    <span>•</span>
                     <a href="/privacy.html" target="_blank" rel="noreferrer" className="hover:text-stone-400 transition-colors">Privacy Policy</a>
                     <span>•</span>
                     <a href="/terms.html" target="_blank" rel="noreferrer" className="hover:text-stone-400 transition-colors">Terms & Conditions</a>

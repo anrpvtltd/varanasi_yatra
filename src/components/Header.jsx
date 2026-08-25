@@ -53,7 +53,7 @@ export default function Header() {
                     </div>
 
                     <a
-                        href="#booking-form"
+                        href="/#booking-form"
                         className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold uppercase tracking-wider px-3.5 py-2 rounded-lg transition shadow-md transform hover:scale-[1.02] active:scale-95 cursor-pointer text-center"
                     >
                         Enquire
