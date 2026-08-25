@@ -40,10 +40,23 @@ router.get('/ready', async (req, res) => {
  * GET /admin/system/health
  */
 router.get('/admin/system/health', async (req, res) => {
-    if (!req.user) {
+    let user = req.user;
+    if (!user) {
+        const authHeader = req.headers.authorization;
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        if (token) {
+            try {
+                const jwt = require('jsonwebtoken');
+                const { env } = require('../config/env');
+                user = jwt.verify(token, env.jwtSecret);
+            } catch {}
+        }
+    }
+
+    if (!user) {
         return res.status(401).json({ success: false, message: "Access token missing. Please log in." });
     }
-    if (req.user.role !== 'CEO') {
+    if (user.role !== 'CEO') {
         return res.status(403).json({ success: false, message: "Access Denied: Detailed diagnostics are CEO-only." });
     }
 
@@ -92,15 +105,28 @@ router.get('/admin/system/health', async (req, res) => {
 });
 
 /**
- * 4. Safe Internal Operational Metrics Endpoint
+ * 4. Safe Internal Operational Metrics Endpoint (Restricted to CEO)
  * GET /admin/system/metrics
  */
 router.get('/admin/system/metrics', async (req, res) => {
-    if (!req.user) {
+    let user = req.user;
+    if (!user) {
+        const authHeader = req.headers.authorization;
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        if (token) {
+            try {
+                const jwt = require('jsonwebtoken');
+                const { env } = require('../config/env');
+                user = jwt.verify(token, env.jwtSecret);
+            } catch {}
+        }
+    }
+
+    if (!user) {
         return res.status(401).json({ success: false, message: "Access token missing. Authentication required." });
     }
-    if (req.user.role !== 'CEO' && req.user.role !== 'Manager') {
-        return res.status(403).json({ success: false, message: "Access Denied: Metrics are restricted to management." });
+    if (user.role !== 'CEO') {
+        return res.status(403).json({ success: false, message: "Access Denied: Metrics are restricted to CEO." });
     }
 
     const memoryUsage = process.memoryUsage();
