@@ -9,7 +9,9 @@ import PerformanceOverview from './PerformanceOverview';
 
 export default function CEOCommandCenter({
     token,
-    user
+    user,
+    onAddLead,
+    onLogout
 }) {
     const [dashData, setDashData] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -75,13 +77,37 @@ export default function CEOCommandCenter({
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={loadData}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md"
-                >
-                    🔄 Refresh Intelligence
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {onAddLead && (
+                        <button
+                            type="button"
+                            onClick={onAddLead}
+                            className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer border border-amber-400/30"
+                        >
+                            <span>➕</span>
+                            <span>Add Lead Manually</span>
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={loadData}
+                        className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-extrabold text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md border border-stone-700"
+                    >
+                        🔄 Refresh Intelligence
+                    </button>
+
+                    {onLogout && (
+                        <button
+                            type="button"
+                            onClick={onLogout}
+                            className="px-3.5 py-2 bg-rose-950/80 hover:bg-rose-900 border border-rose-800/60 text-rose-300 font-extrabold text-xs rounded-xl transition flex items-center space-x-1 cursor-pointer"
+                        >
+                            <span>🔒</span>
+                            <span>Log Out</span>
+                        </button>
+                    )}
+                </div>
             </div>
 
             {loading ? (

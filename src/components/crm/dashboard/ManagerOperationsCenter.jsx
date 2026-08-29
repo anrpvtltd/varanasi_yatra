@@ -10,7 +10,9 @@ export default function ManagerOperationsCenter({
     user: _user,
     onOpenBooking,
     onOpenLead,
-    onOpenQuote
+    onOpenQuote,
+    onAddLead,
+    onLogout
 }) {
     const [dashData, setDashData] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -60,7 +62,18 @@ export default function ManagerOperationsCenter({
                     </p>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    {onAddLead && (
+                        <button
+                            type="button"
+                            onClick={onAddLead}
+                            className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+                        >
+                            <span>➕</span>
+                            <span>Add Lead Manually</span>
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={loadData}
@@ -68,6 +81,17 @@ export default function ManagerOperationsCenter({
                     >
                         🔄 Refresh Queue
                     </button>
+
+                    {onLogout && (
+                        <button
+                            type="button"
+                            onClick={onLogout}
+                            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-extrabold text-xs rounded-xl transition flex items-center space-x-1 cursor-pointer"
+                        >
+                            <span>🔒</span>
+                            <span>Log Out</span>
+                        </button>
+                    )}
                 </div>
             </div>
 

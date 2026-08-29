@@ -240,8 +240,8 @@ export default function AdminCRM() {
         <div className="min-h-screen bg-slate-50/60 p-4 sm:p-8 text-slate-700 text-left font-sans antialiased space-y-4">
             
             {/* SYSTEM MODULE NAVIGATION BAR */}
-            <div className="bg-stone-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center shadow-lg">
-                <div className="flex space-x-2">
+            <div className="bg-stone-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3 shadow-lg">
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                         type="button"
                         onClick={() => setCurrentTab('DASHBOARD')}
@@ -279,8 +279,29 @@ export default function AdminCRM() {
                         📄 Document Engine
                     </button>
                 </div>
-                <div className="text-xs text-amber-200 font-bold px-3 py-1 bg-stone-800/80 rounded-xl border border-stone-700">
-                    Logged in as: <span className="text-amber-400">{user?.role || 'Team Member'}</span> ({user?.name || 'User'})
+                
+                <div className="flex items-center flex-wrap gap-2.5">
+                    <button
+                        type="button"
+                        onClick={() => setIsManualOpen(true)}
+                        className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer border border-amber-400/30"
+                    >
+                        <span>➕</span>
+                        <span>Add Lead Manually</span>
+                    </button>
+
+                    <div className="text-xs text-amber-200 font-bold px-3 py-1.5 bg-stone-800/90 rounded-xl border border-stone-700">
+                        Logged in as: <span className="text-amber-400">{user?.role || 'Team Member'}</span> ({user?.name || 'User'})
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 font-bold text-xs rounded-xl transition flex items-center space-x-1 cursor-pointer shadow-sm"
+                    >
+                        <span>🔒</span>
+                        <span>Log Out</span>
+                    </button>
                 </div>
             </div>
 
@@ -293,6 +314,8 @@ export default function AdminCRM() {
                         onOpenBooking={handleOpenBooking}
                         onOpenLead={(lead) => { setSelectedLead(lead); setProfileTab('overview'); }}
                         onOpenQuote={(lead) => handleOpenQuoteBuilder(lead)}
+                        onAddLead={() => setIsManualOpen(true)}
+                        onLogout={handleLogout}
                     />
                 ) : (
                     <ManagerOperationsCenter
@@ -301,6 +324,8 @@ export default function AdminCRM() {
                         onOpenBooking={handleOpenBooking}
                         onOpenLead={(lead) => { setSelectedLead(lead); setProfileTab('overview'); }}
                         onOpenQuote={(lead) => handleOpenQuoteBuilder(lead)}
+                        onAddLead={() => setIsManualOpen(true)}
+                        onLogout={handleLogout}
                     />
                 )
             )}
