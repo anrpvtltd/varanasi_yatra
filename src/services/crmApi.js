@@ -122,6 +122,84 @@ export const crmApi = {
         return handleResponse(response);
     },
 
+    async forgotPassword({ email }) {
+        const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        return handleResponse(response);
+    },
+
+    async resetPassword({ token, newPassword }) {
+        const response = await fetch(`${BASE_URL}/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, newPassword })
+        });
+        return handleResponse(response);
+    },
+
+    async changePassword(token, { currentPassword, newPassword }) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/auth/change-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ currentPassword, newPassword })
+        });
+        return handleResponse(response);
+    },
+
+    async createUser(token, userData) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(userData)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchUsers(token) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        return handleResponse(response);
+    },
+
+    async toggleUserStatus(token, userId, isActive) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users/${userId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ isActive })
+        });
+        return handleResponse(response);
+    },
+
+    async resetUserPassword(token, userId, temporaryPassword) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users/${userId}/reset-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ temporaryPassword })
+        });
+        return handleResponse(response);
+    },
+
     async fetchEnquiries(token) {
         const response = await fetch(`${BASE_URL}/admin/enquiries`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -580,6 +658,13 @@ export const crmApi = {
     async deleteFile(token, attachmentId) {
         const response = await fetch(`${BASE_URL}/admin/files/${attachmentId}`, {
             method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchBookingProfit(token, bookingId) {
+        const response = await fetch(`${BASE_URL}/admin/booking/${bookingId}/financial-summary`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return handleResponse(response);

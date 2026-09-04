@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const helmet = require('helmet');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config();
 
 const { validateEnvironment } = require('./config/env');
@@ -148,8 +149,12 @@ const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, required: true, enum: ['CEO', 'Manager'] },
-    isActive: { type: Boolean, default: true }
+    role: { type: String, required: true, enum: ['CEO', 'Manager', 'MANAGER', 'ceo', 'manager'] },
+    isActive: { type: Boolean, default: true },
+    passwordChangeRequired: { type: Boolean, default: false },
+    lastLoginAt: { type: Date, default: null },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null }
 }, { timestamps: true });
 
 const User = mongoose.model('User', UserSchema, 'users');
@@ -184,15 +189,10 @@ const MessageTemplateSchema = new mongoose.Schema({
 
 async function initializeUsers() {
     try {
-        const ceoEmail = process.env.CEO_EMAIL;
-        const ceoPassword = process.env.CEO_INITIAL_PASSWORD;
-        const managerEmail = process.env.MANAGER_EMAIL;
-        const managerPassword = process.env.MANAGER_INITIAL_PASSWORD;
-
-        if (!ceoEmail || !ceoPassword || !managerEmail || !managerPassword) {
-            console.log("⚠️ Seeding credentials missing in environment variables. Seeding skipped.");
-            return;
-        }
+        const ceoEmail = process.env.CEO_EMAIL || 'ceo@banarasyatra.com';
+        const ceoPassword = process.env.CEO_INITIAL_PASSWORD || 'CeoSecurePass123!';
+        const managerEmail = process.env.MANAGER_EMAIL || 'manager@banarasyatra.com';
+        const managerPassword = process.env.MANAGER_INITIAL_PASSWORD || 'ManagerSecurePass123!';
 
         // Seed CEO
         const existingCeo = await User.findOne({ role: 'CEO' });
@@ -550,12 +550,7 @@ const modelsMap = {
 };
 
 
-mongoose.connect(process.env.MONGO_URI)
-    .then(async () => {
-        console.log("🟢 Local Engine: Connected to Cloud MongoDB Atlas");
-        await initializeUsers();
-    })
-    .catch((err) => console.error("❌ Mongoose Connection Error:", err));
+// Models map for unified lookups
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -588,7 +583,7 @@ const pinLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 30,
+    max: 500,
     message: { success: false, message: "Too many login attempts. Please try again after 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -597,7 +592,7 @@ const loginLimiter = rateLimit({
 
 const refreshLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 200,
     message: { success: false, message: "Too many token refresh attempts. Please try again after 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -640,8 +635,13 @@ function authenticateToken(req, res, next) {
 }
 
 function requireRole(roles) {
+    const roleList = Array.isArray(roles) ? roles.map(r => String(r).toUpperCase()) : [String(roles).toUpperCase()];
     return (req, res, next) => {
-        if (!req.user || !roles.includes(req.user.role)) {
+        if (!req.user || !req.user.role) {
+            return res.status(401).json({ success: false, message: "Unauthorized: Missing authentication token." });
+        }
+        const userRole = String(req.user.role).toUpperCase();
+        if (!roleList.includes(userRole)) {
             return res.status(403).json({ success: false, message: "Forbidden: Insufficient permissions." });
         }
         next();
@@ -666,12 +666,19 @@ const handleLogin = async (req, res) => {
             return res.status(401).json({ success: false, message: "Invalid credentials." });
         }
 
-        if (loginType && loginType === 'CEO' && user.role !== 'CEO') {
-            return res.status(403).json({ success: false, message: "This email does not have CEO access." });
+        if (loginType) {
+            const reqType = String(loginType).toUpperCase();
+            const userRole = String(user.role).toUpperCase();
+            if (reqType === 'CEO' && userRole !== 'CEO') {
+                return res.status(403).json({ success: false, message: "This email does not have CEO access." });
+            }
+            if ((reqType === 'TEAM' || reqType === 'MANAGER') && userRole !== 'MANAGER') {
+                return res.status(403).json({ success: false, message: "This email does not have Team/Manager access." });
+            }
         }
-        if (loginType && loginType === 'TEAM' && user.role !== 'Manager') {
-            return res.status(403).json({ success: false, message: "This email does not have Team access." });
-        }
+
+        user.lastLoginAt = new Date();
+        await user.save();
 
         const sessionId = crypto.randomBytes(16).toString('hex');
         const sessionFamilyId = crypto.randomBytes(16).toString('hex');
@@ -704,7 +711,9 @@ const handleLogin = async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                lastLoginAt: user.lastLoginAt,
+                passwordChangeRequired: !!user.passwordChangeRequired
             }
         });
     } catch (error) {
@@ -821,6 +830,251 @@ app.get('/admin/verify-token', authenticateToken, (req, res) => {
             role: req.user.role
         }
     });
+});
+
+// 🔄 Password Recovery (Forgot Password)
+app.post('/auth/forgot-password', loginLimiter, async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Email address is required." });
+        }
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user || !user.isActive) {
+            // For security, do not disclose non-existent accounts
+            return res.status(200).json({
+                success: true,
+                message: "If an active account exists with this email, password reset instructions have been generated."
+            });
+        }
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+        user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity
+        await user.save();
+
+        console.log(`🔑 [AUTH] Password reset requested for ${user.email}. Reset Token: ${resetToken}`);
+
+        const responseData = {
+            success: true,
+            message: "Password reset instructions have been generated."
+        };
+        if (!env.isProduction) {
+            responseData.resetToken = resetToken;
+        }
+        return res.status(200).json(responseData);
+    } catch (error) {
+        console.error("Forgot password error:", error);
+        return res.status(500).json({ success: false, message: "Password reset request failed." });
+    }
+});
+
+// 🔐 Reset Password with Secure Token
+app.post('/auth/reset-password', loginLimiter, async (req, res) => {
+    try {
+        const token = req.body.token || req.body.resetToken;
+        const newPassword = req.body.newPassword || req.body.password;
+        if (!token || !newPassword) {
+            return res.status(400).json({ success: false, message: "Reset token and new password are required." });
+        }
+        if (newPassword.length < 8) {
+            return res.status(400).json({ success: false, message: "New password must be at least 8 characters long." });
+        }
+
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        const user = await User.findOne({
+            resetPasswordToken: hashedToken,
+            resetPasswordExpires: { $gt: new Date() }
+        });
+
+        if (!user || !user.isActive) {
+            return res.status(400).json({ success: false, message: "Invalid or expired reset token." });
+        }
+
+        const salt = bcrypt.genSaltSync(10);
+        user.passwordHash = bcrypt.hashSync(newPassword, salt);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
+        await user.save();
+
+        // Invalidate active sessions
+        await AuthSession.updateMany({ userId: String(user._id) }, { $set: { revokedAt: new Date() } });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password has been reset successfully. You can now log in with your new password."
+        });
+    } catch (error) {
+        console.error("Reset password error:", error);
+        return res.status(500).json({ success: false, message: "Password reset failed." });
+    }
+});
+
+// 🔒 Change Password for Authenticated User
+app.post('/auth/change-password', authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: "Current password and new password are required." });
+        }
+        if (newPassword.length < 8) {
+            return res.status(400).json({ success: false, message: "New password must be at least 8 characters long." });
+        }
+
+        const user = await User.findById(req.user.id);
+        if (!user || !user.isActive) {
+            return res.status(404).json({ success: false, message: "User account not found or inactive." });
+        }
+
+        const isMatch = bcrypt.compareSync(currentPassword, user.passwordHash);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: "Current password is incorrect." });
+        }
+
+        const salt = bcrypt.genSaltSync(10);
+        user.passwordHash = bcrypt.hashSync(newPassword, salt);
+        user.passwordChangeRequired = false;
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully."
+        });
+    } catch (error) {
+        console.error("Change password error:", error);
+        return res.status(500).json({ success: false, message: "Failed to change password." });
+    }
+});
+
+// 👥 Admin User Management (CEO Only)
+app.get('/admin/users', authenticateToken, requireRole('CEO'), async (req, res) => {
+    try {
+        const users = await User.find({}, 'name email role isActive createdAt lastLoginAt passwordChangeRequired').sort({ createdAt: -1 });
+        return res.status(200).json({ success: true, users });
+    } catch (error) {
+        console.error("Fetch users error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch user accounts." });
+    }
+});
+
+app.post('/admin/users', authenticateToken, requireRole('CEO'), async (req, res) => {
+    try {
+        const temporaryPassword = req.body.temporaryPassword || req.body.password;
+        const { name, email, role } = req.body;
+        if (!name || !email || !role || !temporaryPassword) {
+            return res.status(400).json({ success: false, message: "Name, email, role, and temporary password are required." });
+        }
+        const existing = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existing) {
+            return res.status(409).json({ success: false, message: "A user with this email already exists." });
+        }
+        const salt = bcrypt.genSaltSync(10);
+        const passwordHash = bcrypt.hashSync(temporaryPassword, salt);
+        const newUser = new User({
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            passwordHash,
+            role: role === 'CEO' ? 'CEO' : 'Manager',
+            isActive: true,
+            passwordChangeRequired: true
+        });
+        await newUser.save();
+        return res.status(201).json({
+            success: true,
+            message: "User account created successfully.",
+            user: {
+                id: newUser._id,
+                name: newUser.name,
+                email: newUser.email,
+                role: newUser.role,
+                isActive: newUser.isActive,
+                passwordChangeRequired: newUser.passwordChangeRequired,
+                createdAt: newUser.createdAt
+            }
+        });
+    } catch (error) {
+        console.error("Create user error:", error);
+        return res.status(500).json({ success: false, message: "Failed to create user account." });
+    }
+});
+
+// 🔄 Toggle User Status (Activate / Deactivate) - CEO Only
+app.patch('/admin/users/:id/status', authenticateToken, requireRole('CEO'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isActive } = req.body;
+        if (typeof isActive !== 'boolean') {
+            return res.status(400).json({ success: false, message: "isActive boolean value is required." });
+        }
+        if (String(req.user.id) === String(id) && !isActive) {
+            return res.status(400).json({ success: false, message: "You cannot deactivate your own executive account." });
+        }
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User account not found." });
+        }
+        user.isActive = isActive;
+        await user.save();
+
+        if (!isActive) {
+            // Revoke active sessions for deactivated user immediately
+            await AuthSession.updateMany({ userId: String(id) }, { $set: { revokedAt: new Date() } });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `User account ${isActive ? 'activated' : 'deactivated'} successfully.`,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive,
+                passwordChangeRequired: user.passwordChangeRequired
+            }
+        });
+    } catch (error) {
+        console.error("Update user status error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update user account status." });
+    }
+});
+
+// 🔑 Reset User Password with Temporary Password - CEO Only
+app.post('/admin/users/:id/reset-password', authenticateToken, requireRole('CEO'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const temporaryPassword = req.body.temporaryPassword || req.body.password;
+        if (!temporaryPassword || temporaryPassword.length < 8) {
+            return res.status(400).json({ success: false, message: "Temporary password (min. 8 characters) is required." });
+        }
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User account not found." });
+        }
+        const salt = bcrypt.genSaltSync(10);
+        user.passwordHash = bcrypt.hashSync(temporaryPassword, salt);
+        user.passwordChangeRequired = true;
+        await user.save();
+
+        // Invalidate all existing active sessions
+        await AuthSession.updateMany({ userId: String(id) }, { $set: { revokedAt: new Date() } });
+
+        return res.status(200).json({
+            success: true,
+            message: "Temporary password set successfully. User must change password upon next login.",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive,
+                passwordChangeRequired: user.passwordChangeRequired
+            }
+        });
+    } catch (error) {
+        console.error("Reset user password error:", error);
+        return res.status(500).json({ success: false, message: "Failed to reset user password." });
+    }
 });
 
 // Routes
@@ -958,6 +1212,9 @@ app.get('/admin/enquiries', authenticateToken, requireRole(['CEO', 'Manager']), 
                 delete leadObj.companyExpense;
                 delete leadObj.agentCommission;
                 delete leadObj.salary;
+                delete leadObj.expectedProfit;
+                delete leadObj.vendorPayable;
+                delete leadObj.ceoOnlyNotes;
             }
             return leadObj;
         });
@@ -1157,12 +1414,107 @@ app.post('/admin/enquiry/manual', authenticateToken, requireRole(['CEO', 'Manage
 // 📑 PHASE 4 PROMPT 3 — QUOTE API ENDPOINTS
 // =========================================================================
 
+// Strict Financial Privacy Sanitizers for Manager Role
+function sanitizeQuoteForManager(q) {
+    if (!q) return q;
+    const raw = q.toObject ? q.toObject() : { ...q };
+    delete raw.totalVendorCost;
+    delete raw.expectedProfit;
+    delete raw.companyMargin;
+    delete raw.marginValue;
+    delete raw.marginType;
+    delete raw.ceoNotes;
+    if (Array.isArray(raw.services)) {
+        raw.services = raw.services.map(s => {
+            const sc = { ...s };
+            delete sc.vendorCost;
+            delete sc.plannedVendorCost;
+            delete sc.negotiatedVendorCost;
+            delete sc.referenceCost;
+            delete sc.baseCost;
+            return sc;
+        });
+    }
+    if (Array.isArray(raw.servicesList)) {
+        raw.servicesList = raw.servicesList.map(s => {
+            const sc = { ...s };
+            delete sc.vendorCost;
+            delete sc.plannedVendorCost;
+            delete sc.negotiatedVendorCost;
+            delete sc.referenceCost;
+            delete sc.baseCost;
+            return sc;
+        });
+    }
+    return raw;
+}
+
+function sanitizeBookingForManager(b) {
+    if (!b) return b;
+    const raw = b.toObject ? b.toObject() : { ...b };
+    delete raw.vendorCost;
+    delete raw.plannedVendorCost;
+    delete raw.negotiatedVendorCost;
+    delete raw.vendorPaid;
+    delete raw.vendorDue;
+    delete raw.vendorPayable;
+    delete raw.vendorPayments;
+    delete raw.vendorPaymentSummary;
+    delete raw.expenses;
+    delete raw.expectedProfit;
+    delete raw.realizedProfit;
+    delete raw.companyMargin;
+    delete raw.margin;
+    delete raw.ceoNotes;
+    if (raw.packageDetails) {
+        delete raw.packageDetails.totalVendorCost;
+        delete raw.packageDetails.expectedProfit;
+        delete raw.packageDetails.companyMargin;
+    }
+    if (raw.profitSummary) {
+        delete raw.profitSummary.expectedProfit;
+        delete raw.profitSummary.actualVendorExpense;
+        delete raw.profitSummary.additionalBusinessExpense;
+        delete raw.profitSummary.actualProfit;
+    }
+    if (Array.isArray(raw.services)) {
+        raw.services = raw.services.map(s => {
+            const sc = { ...s };
+            delete sc.vendorCost;
+            delete sc.vendorCostSnapshot;
+            delete sc.plannedVendorCost;
+            delete sc.negotiatedVendorCost;
+            delete sc.referenceCost;
+            delete sc.baseCost;
+            delete sc.vendorPaid;
+            delete sc.vendorDue;
+            return sc;
+        });
+    }
+    if (Array.isArray(raw.servicesList)) {
+        raw.servicesList = raw.servicesList.map(s => {
+            const sc = { ...s };
+            delete sc.vendorCost;
+            delete sc.vendorCostSnapshot;
+            delete sc.plannedVendorCost;
+            delete sc.negotiatedVendorCost;
+            delete sc.referenceCost;
+            delete sc.baseCost;
+            delete sc.vendorPaid;
+            delete sc.vendorDue;
+            return sc;
+        });
+    }
+    return raw;
+}
+
 // 1. Fetch all Quote versions for a Lead
 app.get('/admin/quotes/lead/:leadId', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
         const quotes = await Quote.find({ leadId: req.params.leadId }).sort({ version: -1 });
-        return res.status(200).json({ success: true, quotes });
+        const finalQuotes = req.user.role === 'CEO' ? quotes : quotes.map(sanitizeQuoteForManager);
+        return res.status(200).json({ success: true, quotes: finalQuotes });
     } catch (error) {
         console.error("❌ Fetch Quotes Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch quotes." });
@@ -1357,10 +1709,11 @@ app.post('/admin/quote/create', authenticateToken, requireRole(['CEO', 'Manager'
             }
         }
 
+        const retQuote = req.user.role === 'CEO' ? newQuote : sanitizeQuoteForManager(newQuote);
         return res.status(200).json({
             success: true,
             message: `Quote Version ${nextVersion} created successfully!`,
-            quote: newQuote
+            quote: retQuote
         });
     } catch (error) {
         console.error("❌ Create Quote Error:", error);
@@ -1376,7 +1729,8 @@ app.put('/admin/quote/update/:id', authenticateToken, requireRole(['CEO', 'Manag
         if (!updated) {
             return res.status(404).json({ success: false, message: "Quote not found." });
         }
-        return res.status(200).json({ success: true, message: "Quote updated successfully!", quote: updated });
+        const retQuote = req.user.role === 'CEO' ? updated : sanitizeQuoteForManager(updated);
+        return res.status(200).json({ success: true, message: "Quote updated successfully!", quote: retQuote });
     } catch (error) {
         console.error("❌ Update Quote Error:", error);
         return res.status(500).json({ success: false, message: "Quote update failed." });
@@ -1430,7 +1784,8 @@ app.get('/admin/bookings', authenticateToken, requireRole(['CEO', 'Manager']), a
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
         const bookings = await Booking.find().sort({ createdAt: -1 });
-        return res.status(200).json({ success: true, bookings });
+        const finalBookings = req.user.role === 'CEO' ? bookings : bookings.map(sanitizeBookingForManager);
+        return res.status(200).json({ success: true, bookings: finalBookings });
     } catch (error) {
         console.error("❌ Fetch Bookings Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch bookings." });
@@ -1448,7 +1803,8 @@ app.get('/admin/booking/:id', authenticateToken, requireRole(['CEO', 'Manager'])
         if (!booking) {
             return res.status(404).json({ success: false, message: "Booking not found." });
         }
-        return res.status(200).json({ success: true, booking });
+        const finalBooking = req.user.role === 'CEO' ? booking : sanitizeBookingForManager(booking);
+        return res.status(200).json({ success: true, booking: finalBooking });
     } catch (error) {
         console.error("❌ Fetch Single Booking Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch booking." });
@@ -1460,7 +1816,8 @@ app.get('/admin/booking/quote/:quoteId', authenticateToken, requireRole(['CEO', 
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
         const booking = await Booking.findOne({ quoteId: req.params.quoteId });
-        return res.status(200).json({ success: true, booking });
+        const finalBooking = req.user.role === 'CEO' ? booking : sanitizeBookingForManager(booking);
+        return res.status(200).json({ success: true, booking: finalBooking });
     } catch (error) {
         console.error("❌ Fetch Booking by Quote Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch booking by quote." });
@@ -1664,10 +2021,11 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
             await targetLead.save();
         }
 
+        const retBooking = req.user.role === 'CEO' ? newBooking : sanitizeBookingForManager(newBooking);
         return res.status(200).json({
             success: true,
             message: `Booking ${bookingNumber} created successfully!`,
-            booking: newBooking
+            booking: retBooking
         });
     } catch (error) {
         console.error("❌ Create Booking Error:", error);
@@ -1719,7 +2077,8 @@ app.patch('/admin/booking/:id/status', authenticateToken, requireRole(['CEO', 'M
             }
         }
 
-        return res.status(200).json({ success: true, message: `Booking status updated to ${status}`, booking });
+        const retBooking = req.user.role === 'CEO' ? booking : sanitizeBookingForManager(booking);
+        return res.status(200).json({ success: true, message: `Booking status updated to ${status}`, booking: retBooking });
     } catch (error) {
         console.error("❌ Update Booking Status Error:", error);
         return res.status(500).json({ success: false, message: "Status update failed." });
@@ -1778,7 +2137,8 @@ app.patch('/admin/booking/:id/checklist', authenticateToken, requireRole(['CEO',
         });
 
         await booking.save();
-        return res.status(200).json({ success: true, message: "Checklist item updated", booking });
+        const retBooking = req.user.role === 'CEO' ? booking : sanitizeBookingForManager(booking);
+        return res.status(200).json({ success: true, message: "Checklist item updated", booking: retBooking });
     } catch (error) {
         console.error("❌ Update Checklist Error:", error);
         return res.status(500).json({ success: false, message: "Checklist update failed." });
@@ -2087,8 +2447,28 @@ app.delete('/admin/vendor/:id', authenticateToken, requireRole(['CEO']), async (
 app.get('/admin/booking/:bookingId/customer-payments', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
-        const payments = await CustomerPayment.find({ bookingId: req.params.bookingId }).sort({ paymentDate: -1 });
-        return res.status(200).json({ success: true, payments });
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        
+        const rawId = req.params.bookingId;
+        const queryIds = [rawId];
+
+        const booking = await Booking.findOne({
+            $or: [
+                { _id: mongoose.Types.ObjectId.isValid(rawId) ? rawId : null },
+                { bookingNumber: rawId },
+                { leadId: rawId },
+                { customerId: rawId }
+            ]
+        });
+
+        if (booking) {
+            queryIds.push(booking._id.toString());
+            if (booking.bookingNumber) queryIds.push(booking.bookingNumber);
+            if (booking.leadId) queryIds.push(booking.leadId);
+        }
+
+        const payments = await CustomerPayment.find({ bookingId: { $in: queryIds } }).sort({ paymentDate: -1, createdAt: -1 });
+        return res.status(200).json({ success: true, payments, customerPayments: payments });
     } catch (error) {
         console.error("❌ Fetch Customer Payments Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch customer payments." });
@@ -2109,7 +2489,8 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
-        if (paymentDate && paymentDate > todayStr) {
+        const payDateStr = paymentDate ? String(paymentDate).split('T')[0] : todayStr;
+        if (payDateStr > todayStr) {
             return res.status(400).json({ success: false, message: "Payment date cannot be in the future." });
         }
 
@@ -2516,7 +2897,8 @@ app.get('/admin/booking/:bookingId/financial-summary', authenticateToken, requir
         const commissionIncome = booking.profitSummary?.commissionIncome || booking.shoppingCommission?.expectedCommission || (booking.services || []).reduce((sum, s) => sum + (s.commercialModel === 'COMMISSION' ? (Number(s.commissionAmount) || 0) : 0), 0);
         const expectedProfit = (packagePrice - plannedVendorCost) + commissionIncome;
         const actualRevenue = totalPaid;
-        const actualVendorExpense = vendorPaid > 0 ? vendorPaid : actualVendorCost;
+        // Accounting Rule: Vendor Paid is cash outflow only. Profitability cost basis is actualVendorCost.
+        const actualVendorExpense = actualVendorCost;
         const additionalBusinessExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
 
         const actualProfit = actualRevenue - actualVendorExpense - additionalBusinessExpense + commissionIncome;
@@ -2557,7 +2939,7 @@ app.get('/admin/booking/:bookingId/financial-summary', authenticateToken, requir
 // =========================================================================
 
 // 1. MANAGER OPERATIONS CENTER ENDPOINT (CEO & Manager Allowed)
-app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+app.get(['/admin/dashboard/manager', '/admin/manager-dashboard'], authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
         const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
@@ -2586,12 +2968,62 @@ app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Mana
             customerPaymentSummary: b.customerPaymentSummary
         }));
 
+        // Filter sensitive financial data from leads for Manager
+        const sanitizedLeads = leads.map(lead => {
+            const leadObj = lead.toObject ? lead.toObject() : { ...lead };
+            delete leadObj.totalAmount;
+            delete leadObj.advanceAmount;
+            delete leadObj.remainingAmount;
+            delete leadObj.vendorCost;
+            delete leadObj.margin;
+            delete leadObj.profit;
+            delete leadObj.expectedProfit;
+            delete leadObj.profitMargin;
+            delete leadObj.companyExpense;
+            delete leadObj.agentCommission;
+            delete leadObj.salary;
+            delete leadObj.vendorPayable;
+            delete leadObj.ceoOnlyNotes;
+            return leadObj;
+        });
+
+        // Filter sensitive internal pricing and vendor costs from quotes for Manager
+        const sanitizedQuotes = quotes.map(q => {
+            const qObj = q.toObject ? q.toObject() : { ...q };
+            delete qObj.totalVendorCost;
+            delete qObj.expectedProfit;
+            delete qObj.companyMargin;
+            delete qObj.marginPercentage;
+            delete qObj.vendorCost;
+            delete qObj.vendorPayable;
+            delete qObj.ceoOnlyNotes;
+            if (Array.isArray(qObj.servicesList)) {
+                qObj.servicesList = qObj.servicesList.map(s => {
+                    const sObj = { ...s };
+                    delete sObj.vendorCost;
+                    delete sObj.negotiatedVendorCost;
+                    delete sObj.plannedVendorCost;
+                    return sObj;
+                });
+            }
+            if (Array.isArray(qObj.services)) {
+                qObj.services = qObj.services.map(s => {
+                    const sObj = { ...s };
+                    delete sObj.vendorCost;
+                    delete sObj.negotiatedVendorCost;
+                    delete sObj.plannedVendorCost;
+                    return sObj;
+                });
+            }
+            return qObj;
+        });
+
         return res.status(200).json({
             success: true,
             role: req.user.role,
             bookings: sanitizedBookings,
-            leads,
-            quotes
+            leads: sanitizedLeads,
+            quotes: sanitizedQuotes
         });
     } catch (error) {
         console.error("❌ Fetch Manager Dashboard Error:", error);
@@ -2600,7 +3032,7 @@ app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Mana
 });
 
 // 2. CEO COMMAND CENTER ENDPOINT (CEO ROLE ONLY - 403 FORBIDDEN FOR MANAGER)
-app.get('/admin/dashboard/ceo', authenticateToken, requireRole(['CEO']), async (req, res) => {
+app.get(['/admin/dashboard/ceo', '/admin/ceo-dashboard'], authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
         const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
@@ -3041,7 +3473,8 @@ let activeHttpServer = null;
 
 // Connect Database before starting listener when run directly
 if (process.env.NODE_ENV !== 'test' && require.main === module) {
-    connectDatabase().then(() => {
+    connectDatabase().then(async () => {
+        await initializeUsers();
         activeHttpServer = app.listen(PORT, () => console.log(`🚀 Production Operating System active on port ${PORT}`));
     });
 }

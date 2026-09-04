@@ -140,6 +140,18 @@ export function useAuth() {
         }
     };
 
+    const setAuthSession = useCallback((authData, maybeToken) => {
+        if (!authData) return;
+        const token = authData.token || maybeToken;
+        const user = authData.user || (authData.role ? authData : null);
+        const refreshToken = authData.refreshToken || null;
+
+        tokenStorage.setSession(token, refreshToken, user);
+        setToken(token);
+        setUser(user);
+        setIsAuthenticated(Boolean(token && user));
+    }, []);
+
     return {
         isCheckingSession,
         isAuthenticated,
@@ -153,6 +165,7 @@ export function useAuth() {
         setPassword,
         isAuthenticating,
         handleLogout,
-        handleLoginSubmit
+        handleLoginSubmit,
+        setAuthSession
     };
 }

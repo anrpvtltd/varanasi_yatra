@@ -57,15 +57,20 @@ export function calculateVendorPaymentSummary(vendorAssignments = [], vendorPaym
 export function calculateBookingProfit(packagePrice = 0, plannedVendorCost = 0, customerPayments = [], vendorPayments = [], businessExpenses = [], commissionIncome = 0, actualVendorCostOverride = 0) {
     const price = Number(packagePrice) || 0;
     const plannedCost = Number(plannedVendorCost) || 0;
+    const commission = Number(commissionIncome) || 0;
 
-    const expectedProfit = price - plannedCost;
+    const expectedProfit = price - plannedCost + commission;
 
     const actualRevenue = (customerPayments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const actualVendorPayments = (vendorPayments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const actualVendorExpense = actualVendorPayments > 0 ? actualVendorPayments : (actualVendorCostOverride || plannedCost);
+
+    // Accounting Rule: Vendor payment is cash outflow ONLY.
+    // Realized vendor cost must come from a trustworthy actual/incurred cost field or planned cost snapshot, NEVER vendor payment outflow.
+    const actualVendorExpense = Number(actualVendorCostOverride) > 0 
+        ? Number(actualVendorCostOverride) 
+        : plannedCost;
 
     const additionalBusinessExpense = (businessExpenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-    const commission = Number(commissionIncome) || 0;
 
     const actualProfit = actualRevenue - actualVendorExpense - additionalBusinessExpense + commission;
 
@@ -83,6 +88,7 @@ export function calculateBookingProfit(packagePrice = 0, plannedVendorCost = 0, 
     return {
         expectedProfit,
         actualRevenue,
+        vendorPaid: actualVendorPayments,
         actualVendorExpense,
         additionalBusinessExpense,
         commissionIncome: commission,

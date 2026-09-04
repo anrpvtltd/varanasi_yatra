@@ -8,7 +8,8 @@ export default function VendorSelector({
     selectedVendorId,
     selectedVendorCost,
     onSelectVendor,
-    onOverrideCost
+    onOverrideCost,
+    hideCost = false
 }) {
     const [vendors, setVendors] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -112,28 +113,30 @@ export default function VendorSelector({
                         <option value="">-- Select Master Resource --</option>
                         {vendors.map((v) => (
                             <option key={v._id} value={v._id}>
-                                {v.recommendationBadge ? '⭐ ' : ''}{v.businessName || v.name} · ₹{(v.baseRate || 0).toLocaleString('en-IN')} ({v.reliabilityLabel || 'Active'})
+                                {v.recommendationBadge ? '⭐ ' : ''}{v.businessName || v.name}{hideCost ? '' : ` · ₹${(v.baseRate || 0).toLocaleString('en-IN')}`} ({v.reliabilityLabel || 'Active'})
                             </option>
                         ))}
                     </select>
                 </div>
 
-                <div className="w-32">
-                    <label className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest block mb-1">
-                        Vendor Cost (₹)
-                    </label>
-                    <input
-                        type="number"
-                        min="0"
-                        value={customCost}
-                        onChange={(e) => handleCostChange(e.target.value)}
-                        className={`w-full border font-extrabold text-right px-2.5 py-1.5 rounded-xl text-xs ${
-                            isOverridden
-                                ? 'bg-amber-50 border-amber-500 text-amber-900'
-                                : 'bg-white border-stone-300 text-stone-900'
-                        }`}
-                    />
-                </div>
+                {!hideCost && (
+                    <div className="w-32">
+                        <label className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest block mb-1">
+                            Vendor Cost (₹)
+                        </label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={customCost}
+                            onChange={(e) => handleCostChange(e.target.value)}
+                            className={`w-full border font-extrabold text-right px-2.5 py-1.5 rounded-xl text-xs ${
+                                isOverridden
+                                    ? 'bg-amber-50 border-amber-500 text-amber-900'
+                                    : 'bg-white border-stone-300 text-stone-900'
+                            }`}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* SECONDARY RATE RULE SELECTION IF CONFIGURED */}
@@ -152,9 +155,9 @@ export default function VendorSelector({
                                 {r.ruleName || r.roomType || r.vehicleName || `Rule #${i + 1}`}
                                 {r.acType ? ` (${r.acType})` : ''}
                                 {r.slot ? ` [${r.slot}]` : ''}
-                                {r.commercialModel === 'VENDOR_QUOTE_REQUIRED'
+                                {hideCost ? '' : (r.commercialModel === 'VENDOR_QUOTE_REQUIRED'
                                     ? ' · [Vendor Quote Required]'
-                                    : ` · ₹${(r.referenceRate || 0).toLocaleString('en-IN')}`}
+                                    : ` · ₹${(r.referenceRate || 0).toLocaleString('en-IN')}`)}
                             </option>
                         ))}
                     </select>

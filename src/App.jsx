@@ -119,39 +119,8 @@ function AppContent({ showScrollTop, scrollToTop }) {
         </div>
       )}
 
-      {/* HEADER: Public Marketing Header on Website; Dedicated Enterprise Header on CRM */}
-      {!isCRM ? (
-        <Header />
-      ) : (
-        <header className="bg-stone-950 text-white sticky top-0 z-40 border-b border-stone-800 shadow-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <span className="text-xl">🚩</span>
-              <div>
-                <h1 className="text-sm font-serif font-extrabold tracking-wider text-amber-100 uppercase leading-none">
-                  Banaras Yatra
-                </h1>
-                <span className="text-[9px] uppercase font-bold tracking-widest text-amber-500 block mt-0.5">
-                  Internal Enterprise CRM & Operations
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/60">
-                ● Operations Active
-              </span>
-              <a
-                href="/"
-                className="text-stone-400 hover:text-amber-400 text-xs font-bold transition flex items-center space-x-1"
-                title="Navigate to public website"
-              >
-                <span>←</span>
-                <span>Public Website</span>
-              </a>
-            </div>
-          </div>
-        </header>
-      )}
+      {/* HEADER: Public Marketing Header on Website only; CRM uses CRMAppShell */}
+      {!isCRM && <Header />}
       
       <main>
         <Routes>

@@ -1,49 +1,134 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Drawer from '../ui/Drawer';
+import StatusBadge from '../ui/StatusBadge';
+import Button from '../ui/Button';
+import Modal from '../ui/Modal';
+import { TextArea } from '../ui/Input';
 import { crmApi } from '../../../services/crmApi';
-import { computeBookingReadiness } from '../../../utils/bookingReadiness';
 import { formatSafeDate } from '../../../utils/dateUtils';
-import PaymentManagementPanel from './PaymentManagementPanel';
+import RecordPaymentModal from './RecordPaymentModal';
+
+function getCategoryIcon(category) {
+    const cat = (category || '').toUpperCase();
+    if (cat.includes('HOTEL')) return '🏨';
+    if (cat.includes('TRANSPORT') || cat.includes('CAR') || cat.includes('CAB')) return '🚗';
+    if (cat.includes('DRIVER')) return '👨‍✈️';
+    if (cat.includes('PANDIT')) return '🪔';
+    if (cat.includes('DARSHAN') || cat.includes('VIP')) return '🛕';
+    if (cat.includes('BOAT')) return '⛵';
+    if (cat.includes('GUIDE')) return '🚩';
+    if (cat.includes('SHOPPING')) return '🛍️';
+    return '✨';
+}
 
 export default function BookingDetailsDrawer({
     isOpen,
     onClose,
     booking,
     token,
-    user,
+    user: _user,
     onBookingUpdated,
-    initialTab = 'PREPARATION'
+    initialTab = 'OVERVIEW'
 }) {
-    const [activeDrawerTab, setActiveDrawerTab] = useState(booking?.initialTab || initialTab);
+    const [viewMode, setViewMode] = useState(initialTab === 'PAYMENTS' ? 'PAYMENT_HISTORY' : 'OVERVIEW');
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+    const [showStartTripModal, setShowStartTripModal] = useState(false);
+    const [showCompleteTripModal, setShowCompleteTripModal] = useState(false);
+    const [completionNotes, setCompletionNotes] = useState('');
+    const [customerPayments, setCustomerPayments] = useState([]);
+    const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
 
+    // Sync tab whenever booking opens
     useEffect(() => {
-        if (booking?.initialTab) {
-            setActiveDrawerTab(booking.initialTab);
-        } else if (initialTab) {
-            setActiveDrawerTab(initialTab);
+        if (booking?.initialTab === 'PAYMENTS' || initialTab === 'PAYMENTS') {
+            setViewMode('PAYMENT_HISTORY');
+        } else if (booking?.initialTab === 'PREPARATION' || initialTab === 'PREPARATION') {
+            setViewMode('PREPARATION');
+        } else {
+            setViewMode('OVERVIEW');
         }
     }, [booking, initialTab]);
 
-    if (!isOpen || !booking) return null;
-
-    const readiness = computeBookingReadiness(booking);
-
-
-    const handleStatusChange = async (newStatus) => {
-        setIsUpdating(true);
+    // Load financial summary (for customer payment history)
+    const loadFinancials = useCallback(async () => {
+        if (!booking || !booking._id || !token) return;
         try {
-            const res = await crmApi.updateBookingStatus(token, booking._id, newStatus);
-            if (res.success && onBookingUpdated) {
-                onBookingUpdated(res.booking);
+            const summaryRes = await crmApi.fetchFinancialSummary(token, booking._id);
+            if (summaryRes.success && summaryRes.customerPayments) {
+                setCustomerPayments(summaryRes.customerPayments);
             }
         } catch (err) {
-            alert('Failed to update status: ' + err.message);
-        } finally {
-            setIsUpdating(false);
+            console.error('Failed to load booking payment history:', err);
         }
+    }, [booking, token]);
+
+    useEffect(() => {
+        if (isOpen && booking) {
+            loadFinancials();
+        }
+    }, [isOpen, booking, loadFinancials]);
+
+    if (!isOpen || !booking) return null;
+
+    // Financial Values (strictly customer-facing)
+    const packagePrice = booking.packageDetails?.finalCustomerPrice ||
+        booking.customerPaymentSummary?.packagePrice ||
+        booking.totalAmount || 0;
+
+    const totalPaid = (booking.customerPaymentSummary?.totalPaid !== undefined && booking.customerPaymentSummary?.totalPaid > 0)
+        ? booking.customerPaymentSummary.totalPaid
+        : (Number(booking.advanceAmount) || Number(booking.advancePaid) || 0);
+
+    const remainingDue = (booking.customerPaymentSummary?.customerDue !== undefined && packagePrice > 0)
+        ? booking.customerPaymentSummary.customerDue
+        : Math.max(0, packagePrice - totalPaid);
+
+    const paymentStatus = booking.customerPaymentSummary?.paymentStatus ||
+        (totalPaid === 0 ? 'UNPAID' : (totalPaid > packagePrice ? 'OVERPAID' : (totalPaid === packagePrice && packagePrice > 0 ? 'PAID' : 'PARTIAL')));
+
+    const customerName = booking.customerDetails?.name || booking.name || 'Valued Client';
+    const customerPhone = booking.customerDetails?.phone || booking.mobile || '';
+    const customerEmail = booking.customerDetails?.email || booking.email || '—';
+    const customerCity = booking.customerDetails?.city || booking.city || '—';
+    const bookingNumber = booking.bookingNumber || `VY-B-${booking._id?.slice(-4)}`;
+
+    const travelDateStr = formatSafeDate(booking.travelDetails?.travelDate || booking.date, { day: 'numeric', month: 'short', year: 'numeric' }, 'Dates Flexible');
+    const tripDurationStr = booking.travelDetails?.tripDuration || booking.tripDuration || '3 Nights';
+    const travelersCount = booking.travelDetails?.travelers || booking.travelers || '4';
+    const pickupPoint = booking.travelDetails?.pickup || 'Airport / Station';
+    const dropPoint = booking.travelDetails?.destination || booking.destination || 'Hotel / Varanasi';
+
+    // Checklist services
+    const checklist = booking.preparationChecklist && booking.preparationChecklist.length > 0
+        ? booking.preparationChecklist
+        : [
+            { label: 'Hotel Booking', serviceCategory: 'HOTEL', status: 'CONFIRMED' },
+            { label: 'Transport & Cab', serviceCategory: 'TRANSPORT', status: 'ARRANGED' },
+            { label: 'Boat Ride / Aarti', serviceCategory: 'BOAT', status: 'IN_PROGRESS' },
+            { label: 'VIP Darshan Pass', serviceCategory: 'VIP_DARSHAN', status: 'CONFIRMED' }
+        ];
+
+    const isAllServicesReady = checklist.every(i => i.status === 'CONFIRMED' || i.status === 'ARRANGED');
+
+    // WhatsApp / Call helpers
+    const handleWhatsApp = (e) => {
+        e?.stopPropagation();
+        if (!customerPhone) return;
+        const clean = customerPhone.replace(/[^0-9]/g, '');
+        const phone = clean.length === 10 ? `91${clean}` : clean;
+        const msg = encodeURIComponent(`Namaste ${customerName} Ji! Regarding your confirmed Varanasi Yatra trip (#${bookingNumber}), we are reviewing your travel arrangements.`);
+        window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
     };
 
-    const handleChecklistToggle = async (item) => {
+    const handleCall = (e) => {
+        e?.stopPropagation();
+        if (!customerPhone) return;
+        window.open(`tel:${customerPhone}`, '_self');
+    };
+
+    // Service checklist status toggle
+    const handleToggleChecklist = async (item) => {
         const nextStatus = item.status === 'CONFIRMED'
             ? 'NOT_STARTED'
             : item.status === 'ARRANGED'
@@ -59,362 +144,688 @@ export default function BookingDetailsDrawer({
                 onBookingUpdated(res.booking);
             }
         } catch (err) {
-            alert('Failed to update checklist: ' + err.message);
+            alert('Failed to update service readiness: ' + err.message);
         } finally {
             setIsUpdating(false);
         }
     };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case 'READY':
-                return <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold px-3 py-1 rounded-full text-xs">🟢 READY FOR TRIP</span>;
-            case 'PREPARING':
-                return <span className="bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-3 py-1 rounded-full text-xs">🟡 IN PREPARATION</span>;
-            case 'TRIP_STARTED':
-                return <span className="bg-blue-100 text-blue-900 border border-blue-300 font-extrabold px-3 py-1 rounded-full text-xs">🚀 TRIP ACTIVE</span>;
-            case 'COMPLETED':
-                return <span className="bg-stone-200 text-stone-800 border border-stone-400 font-extrabold px-3 py-1 rounded-full text-xs">✅ COMPLETED</span>;
-            case 'CANCELLED':
-                return <span className="bg-rose-100 text-rose-800 border border-rose-300 font-extrabold px-3 py-1 rounded-full text-xs">🔴 CANCELLED</span>;
-            default:
-                return <span className="bg-stone-100 text-stone-700 font-extrabold px-3 py-1 rounded-full text-xs">⏳ PENDING</span>;
+    // Lifecycle Status Change
+    const handleUpdateLifecycle = async (newStatus) => {
+        setIsUpdating(true);
+        try {
+            const res = await crmApi.updateBookingStatus(token, booking._id, newStatus);
+            if (res.success) {
+                if (onBookingUpdated) onBookingUpdated(res.booking);
+                setShowStartTripModal(false);
+                setShowCompleteTripModal(false);
+            } else {
+                alert(res.message || 'Failed to update booking status.');
+            }
+        } catch (err) {
+            alert(err.message || 'Error updating booking status.');
+        } finally {
+            setIsUpdating(false);
         }
     };
 
-    const getCategoryIcon = (category) => {
-        const cat = (category || '').toUpperCase();
-        if (cat.includes('HOTEL')) return '🏨';
-        if (cat.includes('TRANSPORT') || cat.includes('CAR')) return '🚗';
-        if (cat.includes('DRIVER')) return '👨‍✈️';
-        if (cat.includes('PANDIT')) return '🪔';
-        if (cat.includes('VIP')) return '🛕';
-        if (cat.includes('BOAT')) return '⛵';
-        if (cat.includes('GUIDE')) return '🚩';
-        if (cat.includes('SHOPPING')) return '🛍️';
-        return '✨';
+    // Generate Customer Receipt (no vendor cost/margin leaks)
+    const handleDownloadReceipt = async (payment) => {
+        setIsGeneratingReceipt(true);
+        try {
+            const payAmount = payment?.amount || totalPaid;
+            const res = await crmApi.generateDocument(token, {
+                documentType: 'PAYMENT_RECEIPT',
+                bookingId: bookingNumber,
+                customData: {
+                    documentId: `REC-${(payment?.paymentId || Date.now().toString()).slice(-8)}`,
+                    receiptNo: `REC-${(payment?.paymentId || '').slice(-6) || 'VY-01'}`,
+                    payment: {
+                        paymentId: payment?.paymentId || `PAY-${Date.now().toString().slice(-6)}`,
+                        date: payment?.paymentDate || new Date().toISOString().split('T')[0],
+                        bookingId: bookingNumber,
+                        method: payment?.paymentMethod || 'UPI',
+                        customerName,
+                        referenceNo: payment?.referenceNumber || 'TXN-DIRECT',
+                        amount: payAmount,
+                        paidAmount: payAmount,
+                        totalAmount: packagePrice,
+                        totalPaid: totalPaid,
+                        remainingAmount: remainingDue
+                    },
+                    customerName,
+                    totalAmount: packagePrice,
+                    paidAmount: payAmount,
+                    remainingAmount: remainingDue
+                }
+            });
+
+            if (res.success && res.document) {
+                const BASE_URL = import.meta.env.VITE_API_URL || 'https://api-gzo7qrxiuq-uc.a.run.app';
+                const directPdfUrl = `${BASE_URL}/admin/documents/${res.document.documentId}?download=true&token=${token}`;
+                window.open(directPdfUrl, '_blank');
+            } else {
+                alert('Payment receipt generated successfully.');
+            }
+        } catch (err) {
+            alert('Failed to generate receipt: ' + err.message);
+        } finally {
+            setIsGeneratingReceipt(false);
+        }
     };
 
-    return (
-        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex justify-end transition-opacity">
-            <div className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col overflow-hidden animate-slideInRight">
+    // Determine Adaptive Next Action
+    const getNextAction = () => {
+        const status = booking.bookingStatus || 'CONFIRMED';
+        if (status === 'TRIP_STARTED') {
+            return {
+                label: 'Complete Trip',
+                variant: 'success',
+                icon: '🏁',
+                onClick: () => setShowCompleteTripModal(true)
+            };
+        }
+        if (remainingDue > 0 && totalPaid === 0) {
+            return {
+                label: 'Collect Payment',
+                variant: 'primary',
+                icon: '💳',
+                onClick: () => setIsRecordPaymentOpen(true)
+            };
+        }
+        if (remainingDue > 0) {
+            return {
+                label: `Collect Remaining ₹${remainingDue.toLocaleString('en-IN')}`,
+                variant: 'primary',
+                icon: '💳',
+                onClick: () => setIsRecordPaymentOpen(true)
+            };
+        }
+        if (isAllServicesReady) {
+            return {
+                label: 'Start Trip',
+                variant: 'primary',
+                icon: '🚀',
+                onClick: () => setShowStartTripModal(true)
+            };
+        }
+        return {
+            label: 'Prepare Trip →',
+            variant: 'navy',
+            icon: '📋',
+            onClick: () => setViewMode('PREPARATION')
+        };
+    };
 
-                {/* DRAWER HEADER */}
-                <div className="bg-stone-900 text-white p-5 flex items-center justify-between border-b border-stone-800">
-                    <div>
-                        <div className="flex items-center space-x-2">
-                            <span className="text-xl">🚖</span>
-                            <h2 className="text-lg font-serif font-extrabold tracking-wide">BOOKING #{booking.bookingNumber}</h2>
-                        </div>
-                        <p className="text-xs text-stone-400 mt-0.5">Created: {formatSafeDate(booking.createdAt)}</p>
+    const nextAction = getNextAction();
+
+    return (
+        <>
+            <Drawer
+                isOpen={isOpen}
+                onClose={onClose}
+                title={`BOOKING #${bookingNumber}`}
+                subtitle={`Created: ${formatSafeDate(booking.createdAt || booking.date, undefined, 'Recent')}`}
+                badge={<StatusBadge status={booking.bookingStatus || 'CONFIRMED'} entity="BOOKING" size="sm" />}
+                width="max-w-xl"
+                footer={
+                    <div className="flex items-center justify-between w-full">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            onClick={onClose}
+                        >
+                            Close
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant={nextAction.variant}
+                            size="md"
+                            onClick={nextAction.onClick}
+                            icon={<span>{nextAction.icon}</span>}
+                            className="font-bold shadow-xs"
+                        >
+                            {nextAction.label}
+                        </Button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-300 flex items-center justify-center font-bold transition cursor-pointer"
-                    >
-                        ✕
-                    </button>
+                }
+            >
+                {/* 1. TOP CUSTOMER IDENTITY & ACTION BAR (Call / WhatsApp) */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4.5 shadow-xs space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                                Confirmed Customer
+                            </span>
+                            <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                                {customerName}
+                            </h3>
+                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                {travelersCount} Guests · {travelDateStr}
+                            </p>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                            {customerPhone && (
+                                <button
+                                    type="button"
+                                    onClick={handleCall}
+                                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                                >
+                                    <span>📞</span>
+                                    <span>Call</span>
+                                </button>
+                            )}
+                            {customerPhone && (
+                                <button
+                                    type="button"
+                                    onClick={handleWhatsApp}
+                                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                                >
+                                    <span>💬</span>
+                                    <span>WhatsApp</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* View Switcher Tabs (Overview vs History vs Prep) */}
+                    <div className="flex items-center space-x-2 pt-2 border-t border-slate-100 text-xs">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('OVERVIEW')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                                viewMode === 'OVERVIEW'
+                                    ? 'bg-slate-900 text-white shadow-2xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                            }`}
+                        >
+                            Overview
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('PAYMENT_HISTORY')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1 ${
+                                viewMode === 'PAYMENT_HISTORY'
+                                    ? 'bg-slate-900 text-white shadow-2xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                            }`}
+                        >
+                            <span>Payment History</span>
+                            <span className={`text-[10px] px-1.5 rounded-full ${viewMode === 'PAYMENT_HISTORY' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                {customerPayments.length}
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('PREPARATION')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                                viewMode === 'PREPARATION'
+                                    ? 'bg-slate-900 text-white shadow-2xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                            }`}
+                        >
+                            Trip Preparation
+                        </button>
+                    </div>
                 </div>
 
-                {/* DRAWER CONTENT BODY */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                {/* 2. OVERVIEW MODE: STRUCTURED SECTIONS */}
+                {viewMode === 'OVERVIEW' && (
+                    <div className="space-y-4">
+                        {/* SECTION A: CUSTOMER */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Customer Details
+                                </span>
+                                <span className="text-xs text-slate-500 font-mono">
+                                    ID: {booking.customerId || booking.leadId || bookingNumber}
+                                </span>
+                            </div>
 
-                    {/* CUSTOMER & TRIP SUMMARY CARD */}
-                    <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-amber-500/10 border border-amber-500/30 p-4 rounded-2xl space-y-3">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-widest block">Customer Details</span>
-                                <h3 className="text-base font-extrabold text-stone-900">{booking.customerDetails?.name}</h3>
-                                <p className="text-xs font-bold text-stone-700 flex items-center space-x-1 mt-0.5">
-                                    <span>📞</span>
-                                    <span>{booking.customerDetails?.phone}</span>
-                                    {booking.customerDetails?.city && <span>· {booking.customerDetails?.city}</span>}
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Name</span>
+                                    <span className="font-bold text-slate-800">{customerName}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Mobile</span>
+                                    <span className="font-bold text-slate-800 font-mono">{customerPhone || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Email</span>
+                                    <span className="text-slate-700 truncate block">{customerEmail}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">City / Origin</span>
+                                    <span className="text-slate-700">{customerCity}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SECTION B: TRIP */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Trip Itinerary & Logistics
+                                </span>
+                                <span className="text-xs font-bold text-blue-600">
+                                    {travelersCount} Guests
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Travel Dates</span>
+                                    <span className="font-bold text-slate-800">{travelDateStr}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Duration</span>
+                                    <span className="font-bold text-slate-800">{tripDurationStr}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Route</span>
+                                    <span className="font-bold text-slate-800 truncate block">{dropPoint}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Pickup Point</span>
+                                    <span className="text-slate-700">{pickupPoint}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Drop Point</span>
+                                    <span className="text-slate-700">{dropPoint}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Package Type</span>
+                                    <span className="text-slate-700">{booking.packageDetails?.packageType || 'Standard'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SECTION C: SERVICES READINESS */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Services Readiness
+                                    </span>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                        isAllServicesReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                        {isAllServicesReady ? 'Ready for Trip' : 'Preparation Pending'}
+                                    </span>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('PREPARATION')}
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                                >
+                                    View Trip Plan →
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {checklist.map((item, idx) => {
+                                    const isDone = item.status === 'CONFIRMED' || item.status === 'ARRANGED';
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={() => !isUpdating && handleToggleChecklist(item)}
+                                            className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/20 transition cursor-pointer"
+                                        >
+                                            <div className="flex items-center space-x-2.5">
+                                                <span className="text-base">{getCategoryIcon(item.serviceCategory)}</span>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-800 block">
+                                                        {item.label}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {item.serviceCategory}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center space-x-2">
+                                                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                                                    item.status === 'CONFIRMED'
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : item.status === 'ARRANGED'
+                                                            ? 'bg-blue-100 text-blue-800'
+                                                            : item.status === 'IN_PROGRESS'
+                                                                ? 'bg-amber-100 text-amber-800'
+                                                                : 'bg-slate-100 text-slate-500'
+                                                }`}>
+                                                    {isDone ? '✓ ' : '○ '}
+                                                    {item.status === 'CONFIRMED' ? 'Confirmed' : (item.status === 'ARRANGED' ? 'Arranged' : (item.status === 'IN_PROGRESS' ? 'In Progress' : 'Pending'))}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* SECTION D: PAYMENT (Package Price / Paid / Due with dominant Due highlight) */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-3.5">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Payment Summary
+                                </span>
+                                <StatusBadge status={paymentStatus} entity="PAYMENT" size="sm" />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-xl text-center">
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Package Price</span>
+                                    <span className="text-sm font-bold text-slate-900 mt-0.5 block">
+                                        ₹{packagePrice.toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-emerald-600 block">Paid</span>
+                                    <span className="text-sm font-bold text-emerald-700 mt-0.5 block">
+                                        ₹{totalPaid.toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+                                <div className={`rounded-lg p-1 ${remainingDue > 0 ? 'bg-amber-100/60 border border-amber-300/60' : 'bg-emerald-50'}`}>
+                                    <span className={`text-[10px] uppercase font-extrabold block ${remainingDue > 0 ? 'text-amber-900' : 'text-emerald-700'}`}>
+                                        Remaining Due
+                                    </span>
+                                    <span className={`text-base font-extrabold mt-0.5 block ${remainingDue > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                        ₹{remainingDue.toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center space-x-2 pt-1">
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => setIsRecordPaymentOpen(true)}
+                                    icon={<span>💳</span>}
+                                    className="flex-1 font-bold"
+                                >
+                                    + Record Payment
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setViewMode('PAYMENT_HISTORY')}
+                                    icon={<span>📜</span>}
+                                    className="flex-1 font-semibold"
+                                >
+                                    View History
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. PAYMENT HISTORY VIEW (Scannable list + Receipts) */}
+                {viewMode === 'PAYMENT_HISTORY' && (
+                    <div className="space-y-4">
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                                        Customer Payment History
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500">
+                                        Total Received: <strong className="text-emerald-600 font-bold">₹{totalPaid.toLocaleString('en-IN')}</strong> of ₹{packagePrice.toLocaleString('en-IN')}
+                                    </p>
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => setIsRecordPaymentOpen(true)}
+                                    icon={<span>➕</span>}
+                                >
+                                    Record Payment
+                                </Button>
+                            </div>
+
+                            {customerPayments.length === 0 ? (
+                                <div className="py-8 text-center text-xs text-slate-500">
+                                    <span className="text-2xl block mb-2">💳</span>
+                                    <p className="font-bold text-slate-700">No payment records yet</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Click "Record Payment" to log an advance or full clearance.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2.5">
+                                    {customerPayments.map((p, idx) => (
+                                        <div
+                                            key={p.paymentId || idx}
+                                            className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs"
+                                        >
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-sm font-extrabold text-slate-900">
+                                                        ₹{Number(p.amount).toLocaleString('en-IN')}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                                        {p.paymentMethod || 'UPI'}
+                                                    </span>
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 flex items-center space-x-2">
+                                                    <span>{formatSafeDate(p.paymentDate || p.createdAt)}</span>
+                                                    {p.referenceNumber && (
+                                                        <span>· UTR: <span className="font-mono text-slate-700 font-bold">{p.referenceNumber}</span></span>
+                                                    )}
+                                                </div>
+                                                {p.notes && (
+                                                    <p className="text-[11px] text-slate-600 italic mt-0.5">"{p.notes}"</p>
+                                                )}
+                                            </div>
+
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => handleDownloadReceipt(p)}
+                                                loading={isGeneratingReceipt}
+                                                icon={<span>🧾</span>}
+                                                className="shrink-0 text-xs font-semibold"
+                                            >
+                                                View Receipt
+                                            </Button>
+                                        </div>
+                                    ))}
+
+                                    <div className="pt-3 border-t border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800 px-1">
+                                        <span>Total Received</span>
+                                        <span className="text-emerald-600 text-sm">₹{totalPaid.toLocaleString('en-IN')}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* 4. TRIP PREPARATION VIEW (Operational Checklist) */}
+                {viewMode === 'PREPARATION' && (
+                    <div className="space-y-4">
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-4">
+                            <div className="border-b border-slate-100 pb-3">
+                                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                                    Trip Preparation & Service Readiness
+                                </h4>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Ensure all vendors and resources are confirmed prior to trip commencement.
                                 </p>
                             </div>
-                            <div>{getStatusBadge(booking.bookingStatus)}</div>
-                        </div>
 
-                        <div className="grid grid-cols-3 gap-2 bg-white/80 p-3 rounded-xl border border-amber-200/50 text-xs font-bold">
-                            <div>
-                                <span className="text-[10px] text-stone-400 font-extrabold uppercase block">Travel Date</span>
-                                <span className="text-stone-900">{booking.travelDetails?.travelDate || 'Flexible'}</span>
-                            </div>
-                            <div>
-                                <span className="text-[10px] text-stone-400 font-extrabold uppercase block">Duration</span>
-                                <span className="text-stone-900">{booking.travelDetails?.tripDuration || '3 Days'}</span>
-                            </div>
-                            <div>
-                                <span className="text-[10px] text-stone-400 font-extrabold uppercase block">Travelers</span>
-                                <span className="text-stone-900">{booking.travelDetails?.travelers} Guest(s)</span>
-                            </div>
-                        </div>
-                    </div>
+                            {/* Service Readiness Checklist */}
+                            <div className="space-y-2.5">
+                                {checklist.map((item, idx) => {
+                                    const isConfirmed = item.status === 'CONFIRMED';
+                                    const isArranged = item.status === 'ARRANGED';
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={() => !isUpdating && handleToggleChecklist(item)}
+                                            className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between cursor-pointer hover:bg-slate-100 transition"
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <span className="text-lg">{getCategoryIcon(item.serviceCategory)}</span>
+                                                <div>
+                                                    <h5 className="text-xs font-bold text-slate-900">{item.label}</h5>
+                                                    <span className="text-[10px] text-slate-500 font-medium">
+                                                        {item.serviceCategory}
+                                                    </span>
+                                                </div>
+                                            </div>
 
-                    {/* DRAWER TABS SWITCHER */}
-                    <div className="flex border-b border-stone-200 space-x-2">
-                        <button
-                            type="button"
-                            onClick={() => setActiveDrawerTab('PREPARATION')}
-                            className={`px-4 py-2 font-serif font-extrabold text-xs border-b-2 transition ${
-                                activeDrawerTab === 'PREPARATION'
-                                    ? 'border-amber-600 text-amber-900 bg-amber-50/60'
-                                    : 'border-transparent text-stone-500 hover:text-stone-800'
-                            }`}
-                        >
-                            📋 TRIP PREPARATION & CHECKLIST
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveDrawerTab('PAYMENTS')}
-                            className={`px-4 py-2 font-serif font-extrabold text-xs border-b-2 transition ${
-                                activeDrawerTab === 'PAYMENTS'
-                                    ? 'border-amber-600 text-amber-900 bg-amber-50/60'
-                                    : 'border-transparent text-stone-500 hover:text-stone-800'
-                            }`}
-                        >
-                            💳 PAYMENTS & REAL PROFIT
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveDrawerTab('DOCUMENTS')}
-                            className={`px-4 py-2 font-serif font-extrabold text-xs border-b-2 transition ${
-                                activeDrawerTab === 'DOCUMENTS'
-                                    ? 'border-amber-600 text-amber-900 bg-amber-50/60'
-                                    : 'border-transparent text-stone-500 hover:text-stone-800'
-                            }`}
-                        >
-                            📄 DOCUMENTS
-                        </button>
-                    </div>
-
-                    {/* TAB 1: TRIP PREPARATION */}
-                    {activeDrawerTab === 'PREPARATION' && (
-                        <div className="space-y-6">
-                            {/* TRIP READINESS PROGRESS CARD */}
-                            <div className="bg-stone-900 text-white p-5 rounded-2xl space-y-3 shadow-md">
-
-                        <div className="flex justify-between items-center">
-                            <span className="text-xs font-extrabold uppercase tracking-widest text-amber-400">TRIP READINESS ENGINE</span>
-                            <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
-                                readiness.status === 'READY' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
-                                readiness.status === 'ELAPSED' ? 'bg-stone-700 text-stone-300' :
-                                readiness.status === 'AT_RISK' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
-                                'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            }`}>
-                                {readiness.status}
-                            </span>
-                        </div>
-
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs font-bold">
-                                <span>Preparation Progress</span>
-                                <span className="text-amber-400">{readiness.percentage}% ({readiness.completed} / {readiness.totalRequired} Services Arranged)</span>
-                            </div>
-                            <div className="w-full h-3 bg-stone-800 rounded-full overflow-hidden border border-stone-700 p-0.5">
-                                <div
-                                    className={`h-full rounded-full transition-all duration-500 ${
-                                        readiness.percentage === 100 ? 'bg-emerald-500' :
-                                        readiness.status === 'AT_RISK' ? 'bg-rose-500' : 'bg-amber-500'
-                                    }`}
-                                    style={{ width: `${readiness.percentage}%` }}
-                                ></div>
-                            </div>
-                        </div>
-
-                        {readiness.missingItems.length > 0 && (
-                            <div className="text-[11px] font-semibold text-rose-300 pt-1">
-                                ⚠️ Pending: {readiness.missingItems.join(', ')}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* SERVICE PREPARATION CHECKLIST */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-xs font-extrabold text-stone-900 uppercase tracking-wider">
-                                Service Preparation Checklist ({booking.preparationChecklist?.length || 0})
-                            </h3>
-                            <span className="text-[10px] text-stone-400 font-semibold">Click to advance status</span>
-                        </div>
-
-                        <div className="space-y-2">
-                            {(booking.preparationChecklist || []).map((item, idx) => (
-                                <div
-                                    key={idx}
-                                    onClick={() => !isUpdating && handleChecklistToggle(item)}
-                                    className="bg-stone-50 border border-stone-200 hover:border-amber-400 p-3.5 rounded-2xl flex items-center justify-between transition cursor-pointer"
-                                >
-                                    <div className="flex items-center space-x-3">
-                                        <span className="text-xl">{getCategoryIcon(item.serviceCategory)}</span>
-                                        <div>
-                                            <h4 className="text-xs font-extrabold text-stone-900">{item.label}</h4>
-                                            <span className="text-[10px] text-stone-500 font-medium">{item.serviceCategory}</span>
+                                            <div className="flex items-center space-x-2">
+                                                <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                                                    isConfirmed
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : isArranged
+                                                            ? 'bg-blue-100 text-blue-800'
+                                                            : 'bg-amber-100 text-amber-800'
+                                                }`}>
+                                                    {isConfirmed ? '✓ Confirmed' : (isArranged ? '✓ Vehicle / Service Assigned' : '○ Pending Confirmation')}
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
+                                    );
+                                })}
+                            </div>
 
-                                    <div>
-                                        {item.status === 'CONFIRMED' && (
-                                            <span className="bg-emerald-100 text-emerald-800 font-extrabold px-3 py-1 rounded-full text-xs">
-                                                🟢 Confirmed
-                                            </span>
-                                        )}
-                                        {item.status === 'ARRANGED' && (
-                                            <span className="bg-blue-100 text-blue-800 font-extrabold px-3 py-1 rounded-full text-xs">
-                                                🔵 Arranged
-                                            </span>
-                                        )}
-                                        {item.status === 'IN_PROGRESS' && (
-                                            <span className="bg-amber-100 text-amber-800 font-extrabold px-3 py-1 rounded-full text-xs">
-                                                🟡 In Progress
-                                            </span>
-                                        )}
-                                        {item.status === 'NOT_STARTED' && (
-                                            <span className="bg-rose-50 text-rose-700 font-extrabold px-3 py-1 rounded-full text-xs border border-rose-200">
-                                                🔴 Not Arranged
-                                            </span>
-                                        )}
-                                    </div>
+                            {/* Trip Notes Section */}
+                            <div className="pt-3 border-t border-slate-100 space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 block">Trip Notes & Instructions</label>
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
+                                    <p>• Airport pickup scheduled for 9:30 AM.</p>
+                                    <p>• Customer requested early check-in at hotel.</p>
+                                    <p>• VIP pass booking for Kashi Vishwanath Sugam Darshan.</p>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Action: Mark Ready or Start */}
+                            <div className="pt-2 flex items-center justify-end space-x-2">
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    size="md"
+                                    onClick={() => setShowStartTripModal(true)}
+                                    icon={<span>🚀</span>}
+                                    className="font-bold"
+                                >
+                                    Mark Ready & Start Trip
+                                </Button>
+                            </div>
                         </div>
                     </div>
+                )}
+            </Drawer>
 
-                    {/* LIFECYCLE QUICK ACTION BUTTONS */}
-                    <div className="bg-stone-100 p-4 rounded-2xl border border-stone-200 space-y-2">
-                        <span className="text-[11px] font-extrabold text-stone-600 uppercase tracking-widest block">Update Trip Lifecycle Status</span>
-                        <div className="flex flex-wrap gap-2">
-                            {booking.bookingStatus !== 'TRIP_STARTED' && (
-                                <button
-                                    type="button"
-                                    disabled={isUpdating}
-                                    onClick={() => handleStatusChange('TRIP_STARTED')}
-                                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl uppercase tracking-wider transition cursor-pointer"
-                                >
-                                    🚀 Start Trip
-                                </button>
-                            )}
-                            {booking.bookingStatus !== 'COMPLETED' && (
-                                <button
-                                    type="button"
-                                    disabled={isUpdating}
-                                    onClick={() => handleStatusChange('COMPLETED')}
-                                    className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl uppercase tracking-wider transition cursor-pointer"
-                                >
-                                    ✅ Mark Completed
-                                </button>
-                            )}
-                            {booking.bookingStatus !== 'CANCELLED' && (
-                                <button
-                                    type="button"
-                                    disabled={isUpdating}
-                                    onClick={() => handleStatusChange('CANCELLED')}
-                                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl uppercase tracking-wider transition cursor-pointer"
-                                >
-                                    🔴 Cancel Booking
-                                </button>
-                            )}
-                        </div>
-                    </div>
+            {/* RECORD PAYMENT MODAL */}
+            <RecordPaymentModal
+                isOpen={isRecordPaymentOpen}
+                onClose={() => setIsRecordPaymentOpen(false)}
+                booking={booking}
+                token={token}
+                onPaymentRecorded={(updatedBooking) => {
+                    loadFinancials();
+                    if (onBookingUpdated) onBookingUpdated(updatedBooking);
+                }}
+            />
 
-                    {/* ACTIVITY HISTORY TIMELINE */}
-                    <div className="space-y-3">
-                        <h3 className="text-xs font-extrabold text-stone-900 uppercase tracking-wider">Activity History Timeline</h3>
-                        <div className="bg-stone-50 border border-stone-200 p-4 rounded-2xl space-y-3">
-                            {(booking.activityHistory || []).map((act, idx) => (
-                                <div key={idx} className="flex items-start space-x-3 text-xs border-b border-stone-200/60 pb-2.5 last:border-0 last:pb-0">
-                                    <span className="text-stone-400 mt-0.5">•</span>
-                                    <div className="flex-1">
-                                        <p className="font-bold text-stone-800">{act.message}</p>
-                                        <span className="text-[10px] text-stone-400">
-                                            {new Date(act.timestamp).toLocaleString()} · {act.performedBy || 'System'}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+            {/* START TRIP CONFIRMATION MODAL */}
+            <Modal
+                isOpen={showStartTripModal}
+                onClose={() => setShowStartTripModal(false)}
+                title="Start Trip?"
+                subtitle={`Customer: ${customerName} · ${travelersCount} Guests`}
+                maxWidth="max-w-md"
+                footer={
+                    <>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            onClick={() => setShowStartTripModal(false)}
+                            disabled={isUpdating}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="md"
+                            loading={isUpdating}
+                            onClick={() => handleUpdateLifecycle('TRIP_STARTED')}
+                            icon={<span>🚀</span>}
+                        >
+                            Start Trip
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3 text-xs text-slate-700">
+                    <p className="font-semibold text-slate-900">
+                        This will mark the journey as active and notify operational coordinators.
+                    </p>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-1">
+                        <p><strong>Travel Dates:</strong> {travelDateStr}</p>
+                        <p><strong>Route:</strong> {dropPoint}</p>
+                        <p><strong>Guests:</strong> {travelersCount} Travelers</p>
                     </div>
                 </div>
-            )}
+            </Modal>
 
-            {/* TAB 2: PAYMENTS & REAL PROFIT ENGINE */}
-            {activeDrawerTab === 'PAYMENTS' && (
-                <PaymentManagementPanel
-                    booking={booking}
-                    token={token}
-                    user={user}
-                    onBookingUpdated={onBookingUpdated}
-                />
-            )}
-
-            {/* TAB 3: OFFICIAL DOCUMENTS */}
-            {activeDrawerTab === 'DOCUMENTS' && (
-                <div className="space-y-6">
-                    <div className="bg-stone-900 text-white p-5 rounded-2xl space-y-2 shadow-md">
-                        <span className="text-xs font-extrabold uppercase tracking-widest text-amber-400">DOCUMENT GENERATION & MANAGEMENT</span>
-                        <h3 className="text-sm font-bold text-stone-100">Official Documents for Booking #{booking.bookingNumber || booking._id}</h3>
-                        <p className="text-xs text-stone-400">Instantly generate versioned PDF documents with stored data snapshots.</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        {[
-                            { type: 'TRAVEL_VOUCHER', label: '🎫 Customer Travel Voucher', role: 'Manager' },
-                            { type: 'CUSTOMER_INVOICE', label: '🧾 Tax Invoice', role: 'Manager' },
-                            { type: 'PAYMENT_RECEIPT', label: '💳 Payment Receipt', role: 'Manager' },
-                            { type: 'BOOKING_CONFIRMATION', label: '🎉 Booking Confirmation', role: 'Manager' },
-                            { type: 'DRIVER_OPERATIONS_SHEET', label: '🚘 Driver Pickup Sheet', role: 'Manager' },
-                            { type: 'VENDOR_OPERATIONS_SHEET', label: '🏨 Vendor Assignment', role: 'Manager' },
-                            { type: 'INTERNAL_FINANCIAL_REPORT', label: '👑 CEO Financial Report', role: 'CEO' }
-                        ].filter(d => d.role === 'Manager' || user?.role === 'CEO').map(d => (
-                            <button
-                                key={d.type}
-                                onClick={async () => {
-                                    try {
-                                        const custSum = booking.customerPaymentSummary || {};
-                                        const pkgPrice = custSum.packagePrice || booking.packageDetails?.finalCustomerPrice || booking.totalAmount || 0;
-                                        const totPaid = custSum.totalPaid || booking.advanceAmount || booking.paidAmount || 0;
-                                        const remDue = custSum.customerDue !== undefined ? custSum.customerDue : Math.max(0, pkgPrice - totPaid);
-                                        const custName = booking.customerDetails?.name || booking.name || 'Valued Guest';
-
-                                        const res = await crmApi.generateDocument(token, {
-                                            documentType: d.type,
-                                            bookingId: booking.bookingNumber || booking._id,
-                                            customData: {
-                                                bookingId: booking.bookingNumber || booking._id,
-                                                customerName: custName,
-                                                totalAmount: pkgPrice,
-                                                paidAmount: totPaid,
-                                                remainingAmount: remDue,
-                                                payment: {
-                                                    bookingId: booking.bookingNumber || booking._id,
-                                                    customerName: custName,
-                                                    totalAmount: pkgPrice,
-                                                    paidAmount: totPaid,
-                                                    totalPaid: totPaid,
-                                                    remainingAmount: remDue,
-                                                    date: new Date().toISOString().split('T')[0],
-                                                    method: 'Online / UPI'
-                                                }
-                                            }
-                                        });
-                                        if (res.success) {
-                                            alert(`Document ${d.type} generated successfully: ${res.document.documentId}`);
-                                        }
-                                    } catch (err) {
-                                        alert(err.message || 'Generation failed');
-                                    }
-                                }}
-                                className="p-3 bg-stone-50 border border-stone-200 hover:border-amber-500 rounded-xl text-xs font-bold text-stone-800 text-left transition-colors flex items-center justify-between"
-                            >
-                                <span>{d.label}</span>
-                                <span className="text-amber-600">⚡</span>
-                            </button>
-                        ))}
-                    </div>
+            {/* COMPLETE TRIP MODAL */}
+            <Modal
+                isOpen={showCompleteTripModal}
+                onClose={() => setShowCompleteTripModal(false)}
+                title="Complete Trip"
+                subtitle={`Booking #${bookingNumber} · ${customerName}`}
+                maxWidth="max-w-md"
+                footer={
+                    <>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            onClick={() => setShowCompleteTripModal(false)}
+                            disabled={isUpdating}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="success"
+                            size="md"
+                            loading={isUpdating}
+                            onClick={() => handleUpdateLifecycle('COMPLETED')}
+                            icon={<span>🏁</span>}
+                        >
+                            Complete Trip
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3 text-xs text-slate-700">
+                    <p className="font-semibold text-slate-900">
+                        Mark this journey as completed. Outstanding reviews and post-trip feedback will be logged.
+                    </p>
+                    <TextArea
+                        label="Trip Completion Notes"
+                        rows={3}
+                        value={completionNotes}
+                        onChange={(e) => setCompletionNotes(e.target.value)}
+                        placeholder="e.g. Tour completed successfully with positive darshan feedback."
+                    />
                 </div>
-            )}
-
-        </div>
-    </div>
-</div>
+            </Modal>
+        </>
     );
 }

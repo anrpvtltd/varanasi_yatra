@@ -205,17 +205,17 @@ export default function VendorFormModal({
             <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-3xl max-h-[94vh] flex flex-col overflow-hidden animate-fadeIn">
                 
                 {/* MODAL HEADER */}
-                <div className="bg-stone-900 text-white p-5 flex items-center justify-between border-b border-stone-800">
+                <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
                     <div className="flex items-center space-x-2.5">
                         <span className="text-2xl">🏛️</span>
                         <div>
-                            <h2 className="text-lg font-serif font-extrabold">
+                            <h2 className="text-lg font-bold text-white tracking-tight">
                                 {vendor ? `Edit Resource: ${vendor.businessName || vendor.name}` : 'Create CEO Master Resource'}
                             </h2>
-                            <p className="text-[11px] text-stone-400">Configure approved vendor details, commercial model, and immutable reference rates.</p>
+                            <p className="text-xs text-slate-400">Configure approved vendor details, commercial model, and immutable reference rates.</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-300 flex items-center justify-center font-bold">✕</button>
+                    <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold text-sm transition">✕</button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
@@ -775,18 +775,18 @@ export default function VendorFormModal({
                     </div>
 
                     {/* ACTIONS */}
-                    <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end space-x-2 rounded-2xl">
+                    <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 rounded-2xl">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold rounded-xl uppercase tracking-wider"
+                            className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-xl transition cursor-pointer"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl uppercase tracking-wider shadow cursor-pointer"
+                            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
                         >
                             {isSaving ? 'Saving...' : vendor ? 'Update Resource' : 'Save Master Resource'}
                         </button>

@@ -1,7 +1,14 @@
 import React from 'react';
-import { getStatusGradient } from '../../../constants/crm';
-import { formatSafeDate } from '../../../utils/dateUtils';
+import Drawer from '../ui/Drawer';
+import StatusBadge from '../ui/StatusBadge';
+import Button from '../ui/Button';
+import Input, { Select } from '../ui/Input';
+import Card from '../ui/Card';
 
+/**
+ * Modernized Lead Profile Drawer
+ * Structured sections: Customer -> Trip -> Requirements -> Customer Notes -> Next Action
+ */
 export default function LeadProfileDrawer({
     selectedLead,
     setSelectedLead,
@@ -15,11 +22,15 @@ export default function LeadProfileDrawer({
 
     const requirements = selectedLead.requirements || {};
 
-    const handleReqToggle = (key) => {
+    const handleReqToggle = (key, altId = null) => {
+        const isCurrentlyChecked = Boolean(requirements[key] || (altId && requirements[altId]));
         const updated = {
             ...requirements,
-            [key]: !requirements[key]
+            [key]: !isCurrentlyChecked
         };
+        if (altId) {
+            updated[altId] = !isCurrentlyChecked;
+        }
         handleInputChange({
             target: {
                 name: 'requirements',
@@ -32,7 +43,7 @@ export default function LeadProfileDrawer({
         if (!selectedLead.mobile) return;
         const cleanNumber = selectedLead.mobile.replace(/[^0-9]/g, '');
         const fullNumber = cleanNumber.length === 10 ? `91${cleanNumber}` : cleanNumber;
-        const text = encodeURIComponent(`Namaste ${selectedLead.name} Ji! Thank you for contacting Varanasi Yatra. Regarding your travel inquiry for ${selectedLead.destination || 'Varanasi'}, how may we assist you today?`);
+        const text = encodeURIComponent(`Namaste ${selectedLead.name} Ji! Thank you for contacting Varanasi Yatra. Regarding your travel enquiry for ${selectedLead.destination || 'Varanasi'}, how may we assist you today?`);
         window.open(`https://wa.me/${fullNumber}?text=${text}`, '_blank');
     };
 
@@ -41,290 +52,297 @@ export default function LeadProfileDrawer({
         window.open(`tel:${selectedLead.mobile}`, '_self');
     };
 
+    const travelDateFormatted = selectedLead.date
+        ? new Date(selectedLead.date).toISOString().split('T')[0]
+        : '';
+
+    const reqServices = [
+        { id: 'hotel', label: 'Hotel Stay', icon: '🏨' },
+        { id: 'transport', altId: 'car', label: 'Transport / Cab', icon: '🚗' },
+        { id: 'darshan', label: 'VIP Darshan', icon: '🛕' },
+        { id: 'boat', label: 'Boat Ride', icon: '⛵' },
+        { id: 'guide', label: 'Tour Guide', icon: '🚩' },
+        { id: 'pandit', label: 'Pandit Ji', icon: '🪔' },
+        { id: 'shopping', label: 'Shopping Visit', icon: '🛍️' },
+        { id: 'other', label: 'Custom Assistance', icon: '✨' }
+    ];
+
     return (
-        <div className="fixed inset-0 bg-stone-950/40 backdrop-blur-xs z-50 flex justify-end transition-opacity duration-300">
-            {/* Backdrop closer */}
-            <div className="absolute inset-0" onClick={() => setSelectedLead(null)}></div>
-
-            {/* Drawer Content */}
-            <div className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col border-l border-stone-200 relative z-10 transform translate-x-0 transition-transform duration-300">
-                {/* Header Status Accent Strip */}
-                <div className={`h-2.5 w-full bg-gradient-to-r ${getStatusGradient(selectedLead.status)}`}></div>
-
-                {/* Drawer Header */}
-                <div className="p-5 pb-4 border-b border-stone-100 bg-stone-50/40 flex justify-between items-center">
-                    <div>
-                        <div className="flex items-center space-x-2">
-                            <h3 className="text-lg font-serif font-bold text-stone-900">{selectedLead.name}</h3>
-                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase tracking-wider">
-                                {selectedLead.status || 'Pending'}
-                            </span>
-                        </div>
-                        <p className="text-xs text-stone-500 font-medium mt-0.5">
-                            Lead ID: #{selectedLead._id?.slice(-6).toUpperCase()} · Created: {formatSafeDate(selectedLead.createdAt)}
-                        </p>
-                    </div>
-                    <button
+        <Drawer
+            isOpen={Boolean(selectedLead)}
+            onClose={() => setSelectedLead(null)}
+            title={
+                <div className="flex items-center space-x-2">
+                    <span className="text-slate-400 font-normal text-xs mr-1">Customer /</span>
+                    <span className="text-slate-900 font-bold">{selectedLead.name}</span>
+                </div>
+            }
+            subtitle={
+                <span className="flex items-center space-x-2 mt-0.5">
+                    <span>📞 {selectedLead.mobile || 'No mobile'}</span>
+                    <span>•</span>
+                    <span className="font-mono text-[10px] text-slate-400">ID: #{selectedLead._id?.slice(-6).toUpperCase()}</span>
+                </span>
+            }
+            badge={<StatusBadge status={selectedLead.status || 'NEW'} entity="LEAD" size="sm" />}
+            width="max-w-2xl"
+            footer={
+                <div className="flex items-center justify-between w-full">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setSelectedLead(null)}
-                        className="text-stone-400 hover:text-stone-900 text-2xl font-bold cursor-pointer transition p-1"
                     >
-                        &times;
-                    </button>
+                        Cancel
+                    </Button>
+
+                    <div className="flex items-center space-x-2.5">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleSaveChanges}
+                            loading={isSaving}
+                        >
+                            Save Changes
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => onOpenQuoteBuilder && onOpenQuoteBuilder(selectedLead)}
+                            icon={<span>📜</span>}
+                        >
+                            Create Quote →
+                        </Button>
+                    </div>
+                </div>
+            }
+        >
+            <form onSubmit={handleSaveChanges} className="space-y-5">
+                {/* 1. CUSTOMER IDENTITY & FAST CONTACT BAR */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shrink-0 border border-blue-200">
+                            {(selectedLead.name || 'C')[0].toUpperCase()}
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900 leading-snug">{selectedLead.name}</h3>
+                            <p className="text-xs text-slate-500">{selectedLead.city || selectedLead.destination || 'Varanasi Yatra Enquirer'}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleCallClick}
+                            icon={<span>📞</span>}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-800"
+                        >
+                            Call
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="primary"
+                            onClick={handleWhatsAppClick}
+                            icon={<span>💬</span>}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                        >
+                            WhatsApp
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Drawer Form */}
-                <form onSubmit={handleSaveChanges} className="flex-1 flex flex-col justify-between overflow-hidden">
-                    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {/* 2. SECTION: CUSTOMER DETAILS */}
+                <Card
+                    title="Customer Information"
+                    subtitle="Primary contact details and origin source"
+                    headerAction={
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                            Source: {selectedLead.leadSource || 'Website'}
+                        </span>
+                    }
+                >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Input
+                            label="Customer Full Name"
+                            name="name"
+                            value={selectedLead.name || ''}
+                            onChange={handleInputChange}
+                            required
+                        />
+                        <Input
+                            label="Mobile Number"
+                            name="mobile"
+                            value={selectedLead.mobile || ''}
+                            onChange={handleInputChange}
+                            required
+                        />
+                        <Input
+                            label="Email Address"
+                            name="email"
+                            type="email"
+                            value={selectedLead.email || ''}
+                            onChange={handleInputChange}
+                            placeholder="customer@email.com"
+                        />
+                        <Select
+                            label="Lead Source"
+                            name="leadSource"
+                            value={selectedLead.leadSource || 'Website'}
+                            onChange={handleInputChange}
+                            options={[
+                                { value: 'Website', label: '🌐 Website Direct' },
+                                { value: 'QR', label: '📱 QR Code Scan' },
+                                { value: 'Offline/Manual', label: '📞 Offline / Direct Call' }
+                            ]}
+                        />
+                    </div>
+                </Card>
 
-                        {/* 1. QUICK CONTACT ACTIONS & SOURCE */}
-                        <div className="bg-stone-50 border border-stone-200/80 p-4 rounded-2xl space-y-3">
-                            <div className="flex justify-between items-center border-b border-stone-200/60 pb-2">
-                                <span className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">
-                                    Customer Contact & Origin
-                                </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
-                                    selectedLead.leadSource === 'QR' 
-                                        ? 'bg-purple-100 text-purple-800'
-                                        : selectedLead.leadSource === 'Offline/Manual'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-emerald-100 text-emerald-800'
-                                }`}>
-                                    Source: {selectedLead.leadSource || 'Website'}
-                                </span>
-                            </div>
+                {/* 3. SECTION: TRIP & ITINERARY */}
+                <Card
+                    title="Trip & Itinerary Requirements"
+                    subtitle="Dates, guest capacity, and route scope"
+                >
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <Input
+                            label="Travel Date"
+                            type="date"
+                            name="date"
+                            min={new Date().toISOString().split('T')[0]}
+                            value={travelDateFormatted}
+                            onChange={handleInputChange}
+                        />
+                        <Input
+                            label="Trip Duration"
+                            name="tripDuration"
+                            value={selectedLead.tripDuration || '3 Days / 2 Nights'}
+                            onChange={handleInputChange}
+                            placeholder="e.g. 3 Days / 2 Nights"
+                        />
+                        <Input
+                            label="Travelers (Pax)"
+                            type="number"
+                            name="travelers"
+                            min="1"
+                            value={selectedLead.travelers || '1'}
+                            onChange={handleInputChange}
+                        />
+                    </div>
 
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <div className="text-sm font-extrabold text-stone-900">📞 {selectedLead.mobile || 'No Mobile'}</div>
-                                    <div className="text-xs text-stone-500">{selectedLead.email || 'No email provided'}</div>
-                                </div>
-                                <div className="flex space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={handleWhatsAppClick}
-                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1 shadow-xs cursor-pointer"
-                                    >
-                                        <span>💬</span>
-                                        <span>WhatsApp</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleCallClick}
-                                        className="px-3 py-1.5 bg-stone-800 hover:bg-stone-900 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1 shadow-xs cursor-pointer"
-                                    >
-                                        <span>📞</span>
-                                        <span>Call</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                        <Input
+                            label="Pickup Location"
+                            name="pickup"
+                            value={selectedLead.pickup || ''}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Varanasi Airport / Cantt Stn"
+                        />
+                        <Input
+                            label="Drop Location"
+                            name="drop"
+                            value={selectedLead.drop || ''}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Airport / Station"
+                        />
+                    </div>
 
-                        {/* 2. TRAVEL DETAILS & ROUTE PLAN */}
-                        <div className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-xs">
-                            <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest border-b border-stone-100 pb-1.5">
-                                Travel Details & Route Requirements
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Travel Date</label>
-                                    <input
-                                        type="date"
-                                        name="date"
-                                        min={new Date().toISOString().split('T')[0]}
-                                        value={selectedLead.date ? new Date(selectedLead.date).toISOString().split('T')[0] : ''}
-                                        onChange={handleInputChange}
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-bold focus:outline-none focus:border-amber-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Travelers (Pax)</label>
-                                    <input
-                                        type="number"
-                                        name="travelers"
-                                        min="1"
-                                        value={selectedLead.travelers || 1}
-                                        onChange={handleInputChange}
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-bold focus:outline-none focus:border-amber-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration</label>
-                                    <input
-                                        type="text"
-                                        name="tripDuration"
-                                        value={selectedLead.tripDuration || '3 Days / 2 Nights'}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. 3 Days / 2 Nights"
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-bold focus:outline-none focus:border-amber-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Pickup Point</label>
-                                    <input
-                                        type="text"
-                                        name="pickup"
-                                        value={selectedLead.pickup || ''}
-                                        onChange={handleInputChange}
-                                        placeholder="Airport / Cantt Stn"
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-bold focus:outline-none focus:border-amber-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Drop Point</label>
-                                    <input
-                                        type="text"
-                                        name="drop"
-                                        value={selectedLead.drop || ''}
-                                        onChange={handleInputChange}
-                                        placeholder="Airport / Station"
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-bold focus:outline-none focus:border-amber-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Lead Source</label>
-                                    <select
-                                        name="leadSource"
-                                        value={selectedLead.leadSource || 'Website'}
-                                        onChange={handleInputChange}
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
-                                    >
-                                        <option value="Website">🌐 Website</option>
-                                        <option value="QR">📱 QR Scan</option>
-                                        <option value="Offline/Manual">📞 Offline / Manual</option>
-                                    </select>
-                                </div>
-                            </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                        <Input
+                            label="Varanasi Destinations"
+                            name="varanasiDestinations"
+                            value={selectedLead.varanasiDestinations || selectedLead.destination || 'Kashi Vishwanath, Assi Ghat, Sarnath'}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Kashi Vishwanath, Assi, Sarnath"
+                        />
+                        <Input
+                            label="Outside Destinations (Optional)"
+                            name="outsideDestinations"
+                            value={selectedLead.outsideDestinations || ''}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Ayodhya, Prayagraj, Bodh Gaya"
+                        />
+                    </div>
+                </Card>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                                        Varanasi Destinations / Ghats
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="varanasiDestinations"
-                                        value={selectedLead.varanasiDestinations || selectedLead.destination || 'Kashi Vishwanath, Assi Ghat, Sarnath'}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. Kashi Vishwanath, Assi, Sarnath"
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-medium focus:outline-none focus:border-amber-500 text-xs"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                                        Outside Varanasi Destinations
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="outsideDestinations"
-                                        value={selectedLead.outsideDestinations || ''}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. Ayodhya, Prayagraj, Gaya, Lucknow"
-                                        className="w-full border border-stone-200 rounded-xl p-2 bg-stone-50 text-stone-900 font-medium focus:outline-none focus:border-amber-500 text-xs"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 3. CUSTOMER REQUIREMENTS CHECKLIST (FOR QUOTE) */}
-                        <div className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-xs">
-                            <div className="flex justify-between items-center border-b border-stone-100 pb-1.5">
-                                <span className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">
-                                    Customer Requirements (Needed For Quote)
-                                </span>
-                                <span className="text-[10px] font-bold text-amber-600">Select All Required Services</span>
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                {[
-                                    { id: 'hotel', label: '🏨 Hotel Stay' },
-                                    { id: 'transport', label: '🚗 Car / Transport', altId: 'car' },
-                                    { id: 'pandit', label: '🪔 Pandit Ji' },
-                                    { id: 'boat', label: '⛵ Boat Ride' },
-                                    { id: 'guide', label: '🚩 Tour Guide' },
-                                    { id: 'shopping', label: '🛍️ Shopping Assist' },
-                                    { id: 'darshan', label: '🛕 VIP Darshan' },
-                                    { id: 'other', label: '✨ Other Services' }
-                                ].map((req) => {
-                                    const isChecked = Boolean(requirements[req.id] || (req.altId && requirements[req.altId]));
-                                    return (
-                                        <button
-                                            key={req.id}
-                                            type="button"
-                                            onClick={() => {
-                                                handleReqToggle(req.id);
-                                                if (req.altId) {
-                                                    const updated = { ...requirements, [req.id]: !isChecked, [req.altId]: !isChecked };
-                                                    handleInputChange({ target: { name: 'requirements', value: updated } });
-                                                }
-                                            }}
-                                            className={`p-2.5 rounded-xl border text-xs font-bold text-left transition flex items-center justify-between cursor-pointer ${
-                                                isChecked
-                                                    ? 'bg-amber-500/10 border-amber-500 text-amber-900 shadow-xs'
-                                                    : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
-                                            }`}
-                                        >
-                                            <span className="truncate">{req.label}</span>
-                                            <span>{isChecked ? '✓' : '+'}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                                    Notes & Special Requests
-                                </label>
-                                <textarea
-                                    name="specialRequirements"
-                                    rows="2"
-                                    value={selectedLead.specialRequirements || ''}
-                                    onChange={handleInputChange}
-                                    className="w-full border border-stone-200 rounded-xl p-2.5 bg-stone-50 text-stone-900 font-medium focus:outline-none focus:border-amber-500 text-xs"
-                                    placeholder="e.g. Needs 7-seater Innova, prefers 4-star hotel near Dashashwamedh ghat..."
-                                />
-                            </div>
-                        </div>
-
-                        {/* 4. CURRENT STATUS & ACTIONS */}
-                        <div className="bg-stone-900 text-white p-4 rounded-2xl space-y-3">
-                            <div className="text-[10px] font-extrabold text-amber-400 uppercase tracking-widest border-b border-stone-800 pb-1.5 flex justify-between">
-                                <span>Quote & Booking Action</span>
-                                <span>Stage: {selectedLead.status || 'Pending'}</span>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
+                {/* 4. SECTION: SERVICE REQUIREMENTS */}
+                <Card
+                    title="Required Services"
+                    subtitle="Check the services requested by the customer for quotation"
+                >
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {reqServices.map((service) => {
+                            const isChecked = Boolean(requirements[service.id] || (service.altId && requirements[service.altId]));
+                            return (
                                 <button
+                                    key={service.id}
                                     type="button"
-                                    onClick={() => onOpenQuoteBuilder && onOpenQuoteBuilder(selectedLead)}
-                                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-serif font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center justify-center space-x-1.5"
+                                    onClick={() => handleReqToggle(service.id, service.altId)}
+                                    className={`p-3 rounded-xl border text-xs font-semibold text-left transition-all flex items-center justify-between cursor-pointer ${
+                                        isChecked
+                                            ? 'bg-blue-50/80 border-blue-500 text-blue-900 shadow-xs font-bold'
+                                            : 'bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                                    }`}
                                 >
-                                    <span>📜</span>
-                                    <span>Build / Edit Quote</span>
+                                    <div className="flex items-center space-x-2 truncate">
+                                        <span className="text-base">{service.icon}</span>
+                                        <span className="truncate">{service.label}</span>
+                                    </div>
+                                    <span className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] shrink-0 ${
+                                        isChecked ? 'bg-blue-600 text-white' : 'border border-slate-300'
+                                    }`}>
+                                        {isChecked ? '✓' : ''}
+                                    </span>
                                 </button>
-                            </div>
-                        </div>
+                            );
+                        })}
+                    </div>
+                </Card>
 
+                {/* 5. SECTION: CUSTOMER NOTES */}
+                <Card
+                    title="Customer Notes & Special Requests"
+                    subtitle="Preferences, accessibility requests, or custom inclusions"
+                >
+                    <textarea
+                        name="specialRequirements"
+                        rows="3"
+                        value={selectedLead.specialRequirements || ''}
+                        onChange={handleInputChange}
+                        placeholder="e.g. Senior citizens traveling, requires ground floor rooms and wheelchair access at temple..."
+                        className="w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-lg border border-slate-200/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all outline-none p-3 text-xs"
+                    />
+                </Card>
+
+                {/* 6. SECTION: NEXT ACTION BANNER */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-sm flex items-center justify-between gap-4">
+                    <div>
+                        <span className="text-[10px] uppercase font-extrabold tracking-widest text-amber-400 block">
+                            Recommended Next Step
+                        </span>
+                        <h4 className="text-xs font-bold text-slate-100 mt-0.5">
+                            Customer requirements ready? Build customized quote package
+                        </h4>
                     </div>
 
-                    {/* Sticky Save actions Footer */}
-                    <div className="p-5 border-t border-stone-100 bg-stone-50/40 flex space-x-3.5">
-                        <button
-                            type="button"
-                            onClick={() => setSelectedLead(null)}
-                            className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs transition cursor-pointer"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isSaving}
-                            className="flex-1 bg-stone-900 hover:bg-amber-600 text-white py-3.5 rounded-xl font-serif font-bold uppercase tracking-widest text-xs transition duration-200 shadow-md disabled:bg-stone-300 disabled:cursor-not-allowed"
-                        >
-                            {isSaving ? 'Saving Changes...' : 'Save Lead Profile'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                    <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => onOpenQuoteBuilder && onOpenQuoteBuilder(selectedLead)}
+                        icon={<span>📜</span>}
+                        className="shadow-xs shrink-0"
+                    >
+                        Create Quote →
+                    </Button>
+                </div>
+            </form>
+        </Drawer>
     );
 }

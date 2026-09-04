@@ -111,11 +111,6 @@ export function calculateCEODashboard({
         return sum + (b.customerPaymentSummary?.customerDue || 0);
     }, 0);
 
-    const vendorOutstanding = (bookings || []).reduce((sum, b) => {
-        if (b.bookingStatus === 'CANCELLED') return sum;
-        return sum + (b.vendorPaymentSummary?.vendorDue || 0);
-    }, 0);
-
     const totalRevenue = (bookings || []).reduce((sum, b) => {
         if (b.bookingStatus === 'CANCELLED') return sum;
         return sum + (b.packageDetails?.finalCustomerPrice || 0);
@@ -126,8 +121,18 @@ export function calculateCEODashboard({
         const comm = b.profitSummary?.commissionIncome !== undefined 
             ? b.profitSummary.commissionIncome 
             : (b.shoppingCommission?.expectedCommission || 
-               (b.services || []).reduce((sSum, s) => sSum + (s.commercialModel === 'COMMISSION' ? (Number(s.commissionAmount) || 0) : 0), 0));
+               (b.services || b.servicesList || []).reduce((sSum, s) => sSum + (s.commercialModel === 'COMMISSION' ? (Number(s.commissionAmount) || 0) : 0), 0));
         return sum + comm;
+    }, 0);
+
+    const passThroughTotal = (bookings || []).reduce((sum, b) => {
+        if (b.bookingStatus === 'CANCELLED') return sum;
+        return sum + (b.services || b.servicesList || []).reduce((sSum, s) => {
+            if (s.commercialModel === 'PASS_THROUGH') {
+                return sSum + ((Number(s.passThroughAmount) || Number(s.customerSellingPrice) || 0) * (Number(s.quantity) || 1));
+            }
+            return sSum;
+        }, 0);
     }, 0);
 
     const plannedVendorCost = (bookings || []).reduce((sum, b) => {
@@ -136,8 +141,8 @@ export function calculateCEODashboard({
         if (pCost === 0 && Array.isArray(b.vendorAssignments) && b.vendorAssignments.length > 0) {
             pCost = b.vendorAssignments.reduce((vSum, v) => vSum + (Number(v.plannedCost) || 0), 0);
         }
-        if (pCost === 0 && Array.isArray(b.services) && b.services.length > 0) {
-            pCost = b.services.reduce((sSum, s) => {
+        if (pCost === 0 && Array.isArray(b.services || b.servicesList) && (b.services || b.servicesList).length > 0) {
+            pCost = (b.services || b.servicesList).reduce((sSum, s) => {
                 const model = s.commercialModel || 'SELLING_PRICE';
                 if (model === 'CUSTOMER_DIRECT' || model === 'COMMISSION') return sSum;
                 const qty = Number(s.quantity) || 1;
@@ -148,16 +153,69 @@ export function calculateCEODashboard({
         return sum + pCost;
     }, 0);
 
+    // Vendor outstanding payables: Planned/applicable vendor cost minus what has actually been disbursed
+    const vendorOutstanding = Math.max(0, plannedVendorCost - vendorPaymentsMade);
+
+    // Liquid Cash In-Hand Position (Strictly separated from profit)
     const netCashPosition = customerCashCollected + commissionIncome - vendorPaymentsMade - businessExpenses;
-    const actualProfit = customerCashCollected - vendorPaymentsMade - businessExpenses + commissionIncome;
 
+    // -------------------------------------------------------------
+    // FINANCIAL SEMANTICS & PROFIT CALCULATION
+    // -------------------------------------------------------------
+    // Expected Gross Profit = Customer Revenue - Vendor Planned Cost + Commission Income
     const expectedProfit = totalRevenue - plannedVendorCost + commissionIncome;
-    const profitVariance = actualProfit - expectedProfit;
 
-    let profitStatus = 'ON_TRACK';
-    if (actualProfit < 0) profitStatus = 'LOSS';
-    else if (profitVariance < 0) profitStatus = 'BELOW_EXPECTATION';
-    else if (profitVariance > 0) profitStatus = 'ABOVE_EXPECTATION';
+    // REALIZED PROFIT ACCOUNTING RULE:
+    // Realized Profit = Realized Customer Revenue - Realized Vendor Cost + Realized Commission Income
+    //
+    // CRITICAL ACCOUNTING PRINCIPLES:
+    // 1. DO NOT use vendorPaymentsMade as realized vendor cost. Vendor Paid = cash outflow only.
+    // 2. Realized Vendor Cost must come from a trustworthy actual/incurred cost field or completed-service cost snapshot.
+    // 3. If no trustworthy actual cost basis exists across active/completed trips:
+    //    Realized Profit = null ("Not Yet Realized")
+    //    Never infer realized cost from vendor payment amount.
+    let realizedProfit = null;
+    let profitVariance = null;
+    let profitStatus = 'PENDING_REALIZATION';
+
+    const completedBookings = (bookings || []).filter(b => b.bookingStatus === 'COMPLETED');
+    
+    // Check if there are completed bookings with explicit, trustworthy actual vendor costs recorded
+    if (completedBookings.length > 0) {
+        let realizedRev = 0;
+        let realizedVCost = 0;
+        let realizedComm = 0;
+        let trustworthyCostRecordsCount = 0;
+
+        for (const b of completedBookings) {
+            const bPaid = b.customerPaymentSummary?.totalPaid || 0;
+            const bComm = Number(b.profitSummary?.commissionIncome || 0);
+
+            // Trustworthy actual cost field: b.vendorPaymentSummary.actualVendorCost or explicit actualCost on assignments
+            const actualCostRecord = Number(b.vendorPaymentSummary?.actualVendorCost) || 
+                                     Number(b.profitSummary?.actualVendorExpense) ||
+                                     (Array.isArray(b.vendorAssignments) && b.vendorAssignments.length > 0 
+                                         ? b.vendorAssignments.reduce((vSum, v) => vSum + (Number(v.actualCost) || 0), 0)
+                                         : 0);
+
+            if (actualCostRecord > 0) {
+                realizedRev += bPaid;
+                realizedVCost += actualCostRecord;
+                realizedComm += bComm;
+                trustworthyCostRecordsCount++;
+            }
+        }
+
+        // Only emit a realized profit if we have trustworthy actual cost records for all completed trips
+        if (trustworthyCostRecordsCount > 0 && trustworthyCostRecordsCount === completedBookings.length && realizedVCost > 0) {
+            realizedProfit = realizedRev - realizedVCost + realizedComm - businessExpenses;
+            profitVariance = realizedProfit - expectedProfit;
+            if (realizedProfit < 0) profitStatus = 'LOSS';
+            else if (profitVariance < 0) profitStatus = 'BELOW_EXPECTATION';
+            else if (profitVariance > 0) profitStatus = 'ABOVE_EXPECTATION';
+            else profitStatus = 'ON_TRACK';
+        }
+    }
 
     // 2. Business Funnel & Conversions (Division-by-zero protection)
     const newLeads = (leads || []).length;
@@ -221,27 +279,42 @@ export function calculateCEODashboard({
         vendorPaymentsMade,
         vendorOutstanding,
         expectedProfit,
-        actualProfit,
+        realizedProfit,
+        actualProfit: realizedProfit,
         profitVariance,
+        commissionIncome,
+        passThroughTotal,
+        netCashPosition,
+        businessExpenses,
         totalBookings: (bookings || []).length,
         activeBookings: (bookings || []).filter(b => b.bookingStatus !== 'CANCELLED').length,
         financialCommandStrip: {
             totalRevenue,
             customerCashCollected,
             customerOutstanding,
+            customerDue: customerOutstanding,
+            plannedVendorCost,
+            vendorCost: plannedVendorCost,
             vendorPaymentsMade,
+            vendorPaid: vendorPaymentsMade,
             vendorOutstanding,
+            vendorDue: vendorOutstanding,
             businessExpenses,
             commissionIncome,
+            passThroughTotal,
             netCashPosition,
-            actualProfit,
-            plannedVendorCost
+            expectedProfit,
+            realizedProfit,
+            actualProfit: realizedProfit
         },
         profitPerformance: {
             expectedProfit,
-            actualProfit,
+            realizedProfit,
+            actualProfit: realizedProfit,
             profitVariance,
             plannedVendorCost,
+            commissionIncome,
+            passThroughTotal,
             status: profitStatus
         },
         businessFunnel: {
