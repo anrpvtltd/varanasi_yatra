@@ -247,9 +247,21 @@ const QuoteSchema = new mongoose.Schema({
         unit: { type: String, default: 'Item' },
         vendorCost: { type: Number, default: 0 },
         customerDisplayName: String,
-        notes: String
+        notes: String,
+        commercialModel: { type: String, default: 'SELLING_PRICE' },
+        resourceId: String,
+        referenceCost: { type: Number, default: 0 },
+        negotiatedVendorCost: { type: Number, default: 0 },
+        customerSellingPrice: { type: Number, default: 0 },
+        customerCharge: { type: Number, default: 0 },
+        commissionRate: { type: Number, default: 0 },
+        commissionAmount: { type: Number, default: 0 },
+        passThroughAmount: { type: Number, default: 0 },
+        rateRuleId: { type: String, default: '' }
     }],
     totalVendorCost: { type: Number, default: 0 },
+    passThroughTotal: { type: Number, default: 0 },
+    commissionTotal: { type: Number, default: 0 },
     marginType: { type: String, default: 'FIXED' },
     marginValue: { type: Number, default: 2500 },
     companyMargin: { type: Number, default: 2500 },
@@ -283,8 +295,25 @@ const VendorSchema = new mongoose.Schema({
     availabilityStatus: { type: String, default: 'Active' },
     rating: { type: Number, default: 4.5 },
     baseRate: { type: Number, default: 0 },
+    commercialModel: { type: String, default: 'SELLING_PRICE' },
     commissionPercent: { type: Number, default: 0 },
     notes: { type: String, default: '' },
+    rateRules: [{
+        ruleId: String,
+        ruleName: String,
+        roomType: String,
+        acType: { type: String, default: 'AC' },
+        vehicleType: String,
+        seatingCapacity: Number,
+        vehicleName: String,
+        route: String,
+        slot: String,
+        commercialModel: String,
+        referenceRate: { type: Number, default: 0 },
+        unit: { type: String, default: 'Item' },
+        isActive: { type: Boolean, default: true },
+        notes: String
+    }],
     services: [{
         serviceId: String,
         serviceCategory: String,
@@ -298,12 +327,29 @@ const VendorSchema = new mongoose.Schema({
     metadata: {
         hotelName: String,
         roomType: String,
+        starCategory: String,
         vehicleType: String,
         capacity: Number,
         pujaType: String,
+        rituals: [{ type: String }],
+        languages: [{ type: String }],
+        guideType: { type: String, default: 'DIRECT_SERVICE' },
+        associatedGuideId: String,
+        associatedGuideName: String,
+        associatedPartnerId: String,
+        associatedPartnerName: String,
         shopName: String,
         commissionType: { type: String, default: 'PERCENTAGE' },
-        commissionValue: { type: Number, default: 0 }
+        commissionValue: { type: Number, default: 0 },
+        commissionRate: { type: Number, default: 0 },
+        guideSharePercent: { type: Number, default: 0 },
+        commissionTerms: String,
+        templeName: String,
+        passName: String,
+        passType: String,
+        passCost: { type: Number, default: 0 },
+        agencyName: String,
+        ceoOnlyNotes: String
     },
     performance: {
         totalAssignments: { type: Number, default: 0 },
@@ -346,6 +392,18 @@ const BookingSchema = new mongoose.Schema({
         quantity: { type: Number, default: 1 },
         unit: { type: String, default: 'Item' },
         vendorCostSnapshot: { type: Number, default: 0 },
+        referenceCost: { type: Number, default: 0 },
+        negotiatedVendorCost: { type: Number, default: 0 },
+        customerSellingPrice: { type: Number, default: 0 },
+        customerCharge: { type: Number, default: 0 },
+        commercialModel: { type: String, default: 'SELLING_PRICE' },
+        commissionRate: { type: Number, default: 0 },
+        commissionAmount: { type: Number, default: 0 },
+        passThroughAmount: { type: Number, default: 0 },
+        resourceId: { type: String, default: '' },
+        vendorId: { type: String, default: '' },
+        vendorName: { type: String, default: '' },
+        rateRuleId: { type: String, default: '' },
         status: { type: String, default: 'NOT_STARTED' },
         assignmentStatus: { type: String, default: 'Unassigned' }
     }],
@@ -368,11 +426,18 @@ const BookingSchema = new mongoose.Schema({
     }],
     vendorAssignments: [{
         serviceCategory: String,
+        serviceName: String,
         vendorId: String,
+        plannedVendorId: String,
+        actualVendorId: String,
         vendorName: String,
         contactPerson: String,
         mobile: String,
-        status: { type: String, default: 'Pending' }
+        commercialModel: String,
+        plannedCost: { type: Number, default: 0 },
+        actualCost: { type: Number, default: 0 },
+        status: { type: String, default: 'Pending' },
+        notes: String
     }],
     customerPaymentSummary: {
         packagePrice: { type: Number, default: 0 },
@@ -631,7 +696,7 @@ app.post('/admin/login', loginLimiter, handleLogin);
 app.post('/auth/login', loginLimiter, handleLogin);
 
 // 🔄 Refresh Token Rotation Route
-app.post('/auth/refresh', refreshLimiter, async (req, res) => {
+const handleRefreshToken = async (req, res) => {
     try {
         const { refreshToken } = req.body;
         if (!refreshToken) {
@@ -693,10 +758,13 @@ app.post('/auth/refresh', refreshLimiter, async (req, res) => {
         console.error("❌ Token Refresh Error:", error);
         return res.status(500).json({ success: false, message: "Token refresh failed." });
     }
-});
+};
+
+app.post('/auth/refresh', refreshLimiter, handleRefreshToken);
+app.post('/admin/refresh', refreshLimiter, handleRefreshToken);
 
 // 🚪 Logout & Token Revocation Routes
-app.post('/auth/logout', async (req, res) => {
+const handleLogoutAction = async (req, res) => {
     try {
         const { refreshToken } = req.body;
         if (refreshToken) {
@@ -707,7 +775,10 @@ app.post('/auth/logout', async (req, res) => {
     } catch {
         return res.status(500).json({ success: false, message: "Logout failed." });
     }
-});
+};
+
+app.post('/auth/logout', handleLogoutAction);
+app.post('/admin/logout', handleLogoutAction);
 
 app.post('/auth/logout-all', authenticateToken, async (req, res) => {
     try {
@@ -1092,26 +1163,126 @@ app.post('/admin/quote/create', authenticateToken, requireRole(['CEO', 'Manager'
             ? existingQuotes[0].quoteNumber
             : `VY-Q-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        // Calculate Financials Server-Side
+        // Calculate Financials Server-Side supporting Commercial Models
         const validServices = Array.isArray(servicesList) ? servicesList : [];
-        const totalVendorCost = validServices.reduce((sum, item) => {
-            const c = Number(item.vendorCost) || 0;
-            const q = Number(item.quantity) || 1;
-            return sum + (c * q);
-        }, 0);
-
-        const numericMargin = Number(marginValue) || 0;
-        let companyMargin = 0;
-        if (marginType === 'PERCENTAGE') {
-            companyMargin = Math.round((totalVendorCost * numericMargin) / 100);
-        } else {
-            companyMargin = numericMargin;
-        }
-
-        const suggestedCustomerPrice = totalVendorCost + companyMargin;
         const numericDiscount = Number(discount) || 0;
-        const finalCustomerPrice = Math.max(0, suggestedCustomerPrice - numericDiscount);
-        const expectedProfit = finalCustomerPrice - totalVendorCost;
+        const hasCommercialModel = validServices.some(s => 
+            s.commercialModel !== undefined || 
+            s.customerSellingPrice !== undefined || 
+            s.negotiatedVendorCost !== undefined ||
+            s.passThroughAmount !== undefined
+        );
+
+        let totalCustomerCharge = 0;
+        let totalVendorCost = 0;
+        let passThroughTotal = 0;
+        let commissionTotal = 0;
+        let companyMargin = 0;
+        let suggestedCustomerPrice = 0;
+        let finalCustomerPrice = 0;
+        let expectedProfit = 0;
+
+        if (hasCommercialModel) {
+            validServices.forEach(item => {
+                const qty = Number(item.quantity) || 1;
+                const model = item.commercialModel || 'SELLING_PRICE';
+
+                if (model === 'SELLING_PRICE') {
+                    const refCost = Number(item.referenceCost !== undefined ? item.referenceCost : (item.vendorCost || 0));
+                    const sellingPrice = Number(
+                        item.customerSellingPrice !== undefined 
+                            ? item.customerSellingPrice 
+                            : (item.customerCharge !== undefined ? item.customerCharge : (refCost || Number(item.vendorCost) || 0))
+                    );
+                    item.referenceCost = refCost;
+                    item.customerSellingPrice = sellingPrice;
+                    item.customerCharge = sellingPrice * qty;
+                    item.vendorCost = refCost;
+                    totalVendorCost += refCost * qty;
+                    totalCustomerCharge += item.customerCharge;
+                } else if (model === 'FIXED_VENDOR_RATE') {
+                    const fixedRate = Number(item.referenceCost !== undefined ? item.referenceCost : (item.vendorCost || 0));
+                    const sellingPrice = Number(
+                        item.customerSellingPrice !== undefined && item.customerSellingPrice > 0 
+                            ? item.customerSellingPrice 
+                            : fixedRate
+                    );
+                    item.referenceCost = fixedRate;
+                    item.customerSellingPrice = sellingPrice;
+                    item.customerCharge = sellingPrice * qty;
+                    item.vendorCost = fixedRate;
+                    totalVendorCost += fixedRate * qty;
+                    totalCustomerCharge += item.customerCharge;
+                } else if (model === 'VENDOR_QUOTE_REQUIRED') {
+                    const negotiated = Number(item.negotiatedVendorCost !== undefined ? item.negotiatedVendorCost : (item.vendorCost || 0));
+                    const sellingPrice = Number(
+                        item.customerSellingPrice !== undefined 
+                            ? item.customerSellingPrice 
+                            : (item.customerCharge !== undefined ? item.customerCharge : negotiated)
+                    );
+                    item.negotiatedVendorCost = negotiated;
+                    item.customerSellingPrice = sellingPrice;
+                    item.customerCharge = sellingPrice * qty;
+                    item.vendorCost = negotiated;
+                    totalVendorCost += negotiated * qty;
+                    totalCustomerCharge += item.customerCharge;
+                } else if (model === 'CUSTOMER_DIRECT') {
+                    item.vendorCost = 0;
+                    item.customerSellingPrice = 0;
+                    item.customerCharge = 0;
+                } else if (model === 'COMMISSION') {
+                    item.vendorCost = 0;
+                    item.customerSellingPrice = 0;
+                    item.customerCharge = 0;
+                    const comm = Number(item.commissionAmount) || 0;
+                    commissionTotal += comm;
+                } else if (model === 'PASS_THROUGH') {
+                    const passAmount = Number(
+                        item.passThroughAmount !== undefined 
+                            ? item.passThroughAmount 
+                            : (item.customerSellingPrice !== undefined 
+                                ? item.customerSellingPrice 
+                                : (item.referenceCost || item.vendorCost || 0))
+                    );
+                    item.passThroughAmount = passAmount;
+                    item.referenceCost = passAmount;
+                    item.vendorCost = passAmount;
+                    item.customerSellingPrice = passAmount;
+                    item.customerCharge = passAmount * qty;
+                    passThroughTotal += item.customerCharge;
+                    totalVendorCost += passAmount * qty;
+                    totalCustomerCharge += item.customerCharge;
+                } else {
+                    const c = Number(item.vendorCost) || 0;
+                    const sp = Number(item.customerSellingPrice !== undefined ? item.customerSellingPrice : c);
+                    item.customerCharge = sp * qty;
+                    totalVendorCost += c * qty;
+                    totalCustomerCharge += item.customerCharge;
+                }
+            });
+
+            suggestedCustomerPrice = totalCustomerCharge;
+            finalCustomerPrice = Math.max(0, totalCustomerCharge - numericDiscount);
+            expectedProfit = finalCustomerPrice - totalVendorCost + commissionTotal;
+            companyMargin = expectedProfit;
+        } else {
+            totalVendorCost = validServices.reduce((sum, item) => {
+                const c = Number(item.vendorCost) || 0;
+                const q = Number(item.quantity) || 1;
+                return sum + (c * q);
+            }, 0);
+
+            const numericMargin = Number(marginValue) || 0;
+            if (marginType === 'PERCENTAGE') {
+                companyMargin = Math.round((totalVendorCost * numericMargin) / 100);
+            } else {
+                companyMargin = numericMargin;
+            }
+
+            suggestedCustomerPrice = totalVendorCost + companyMargin;
+            finalCustomerPrice = Math.max(0, suggestedCustomerPrice - numericDiscount);
+            expectedProfit = finalCustomerPrice - totalVendorCost;
+        }
 
         const newQuote = new Quote({
             leadId,
@@ -1123,8 +1294,10 @@ app.post('/admin/quote/create', authenticateToken, requireRole(['CEO', 'Manager'
             tripDuration: tripDuration || '3 Days / 2 Nights',
             servicesList: validServices,
             totalVendorCost,
+            passThroughTotal,
+            commissionTotal,
             marginType: marginType || 'FIXED',
-            marginValue: numericMargin,
+            marginValue: Number(marginValue) || 0,
             companyMargin,
             suggestedCustomerPrice,
             discount: numericDiscount,
@@ -1241,7 +1414,10 @@ app.get('/admin/bookings', authenticateToken, requireRole(['CEO', 'Manager']), a
 app.get('/admin/booking/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
-        const booking = await Booking.findById(req.params.id);
+        const query = mongoose.Types.ObjectId.isValid(req.params.id)
+            ? { $or: [{ _id: req.params.id }, { bookingNumber: req.params.id }, { leadId: req.params.id }] }
+            : { $or: [{ bookingNumber: req.params.id }, { leadId: req.params.id }] };
+        const booking = await Booking.findOne(query);
         if (!booking) {
             return res.status(404).json({ success: false, message: "Booking not found." });
         }
@@ -1318,15 +1494,27 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
             bookingNumber = `VY-B-${year}-${Date.now().toString().slice(-6)}`;
         }
 
-        // Map Quote services into Preparation Checklist items
+        // Map Quote services into Preparation Checklist items with Commercial Model snapshot
         const services = (quote.servicesList || []).map(s => ({
             serviceCategory: s.category || 'OTHER',
             displayName: s.customerDisplayName || s.serviceName || s.category,
             quantity: s.quantity || 1,
             unit: s.unit || 'Item',
             vendorCostSnapshot: s.vendorCost || 0,
+            referenceCost: s.referenceCost || 0,
+            negotiatedVendorCost: s.negotiatedVendorCost || 0,
+            customerSellingPrice: s.customerSellingPrice || 0,
+            customerCharge: s.customerCharge || 0,
+            commercialModel: s.commercialModel || 'SELLING_PRICE',
+            commissionRate: s.commissionRate || 0,
+            commissionAmount: s.commissionAmount || 0,
+            passThroughAmount: s.passThroughAmount || 0,
+            resourceId: s.resourceId || s.vendorId || '',
+            vendorId: s.vendorId || '',
+            vendorName: s.vendorName || '',
+            rateRuleId: s.rateRuleId || '',
             status: 'NOT_STARTED',
-            assignmentStatus: 'Unassigned'
+            assignmentStatus: s.vendorId ? 'Assigned' : 'Unassigned'
         }));
 
         const preparationChecklist = (quote.servicesList || []).map(s => ({
@@ -1346,6 +1534,39 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
             status: 'INCOMPLETE',
             missingItems: preparationChecklist.map(c => c.label)
         };
+
+        const initialVendorAssignments = (quote.servicesList || []).map(s => {
+            const qty = Number(s.quantity) || 1;
+            const model = s.commercialModel || 'SELLING_PRICE';
+            let plannedCost = 0;
+            if (model === 'FIXED_VENDOR_RATE' || model === 'SELLING_PRICE') {
+                plannedCost = Number(s.referenceCost !== undefined ? s.referenceCost : (s.vendorCost || 0)) * qty;
+            } else if (model === 'VENDOR_QUOTE_REQUIRED') {
+                plannedCost = Number(s.negotiatedVendorCost !== undefined ? s.negotiatedVendorCost : (s.vendorCost || 0)) * qty;
+            } else if (model === 'PASS_THROUGH') {
+                plannedCost = Number(s.passThroughAmount !== undefined ? s.passThroughAmount : (s.referenceCost || s.vendorCost || 0)) * qty;
+            } else if (model === 'CUSTOMER_DIRECT' || model === 'COMMISSION') {
+                plannedCost = 0;
+            }
+
+            return {
+                serviceCategory: s.category || 'OTHER',
+                serviceName: s.serviceName || s.customerDisplayName || s.category || 'Service',
+                vendorId: s.vendorId || s.resourceId || '',
+                plannedVendorId: s.vendorId || s.resourceId || '',
+                actualVendorId: s.vendorId || s.resourceId || '',
+                vendorName: s.vendorName || '',
+                contactPerson: s.contactPerson || '',
+                mobile: s.mobile || '',
+                commercialModel: model,
+                plannedCost,
+                actualCost: plannedCost,
+                status: s.vendorId ? 'Assigned' : 'Pending',
+                notes: s.notes || ''
+            };
+        });
+
+        const totalPlannedVendorCost = Number(quote.totalVendorCost) || initialVendorAssignments.reduce((sum, v) => sum + (v.plannedCost || 0), 0);
 
         const newBooking = new Booking({
             bookingNumber,
@@ -1375,16 +1596,28 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
             bookingStatus: 'PENDING',
             tripReadiness: initialReadiness,
             preparationChecklist,
-            vendorAssignments: [],
+            vendorAssignments: initialVendorAssignments,
             customerPaymentSummary: {
-                totalAmount: quote.finalCustomerPrice || 0,
-                paidAmount: targetLead?.advanceAmount || 0,
-                remainingAmount: (quote.finalCustomerPrice || 0) - (targetLead?.advanceAmount || 0)
+                packagePrice: quote.finalCustomerPrice || 0,
+                totalPaid: targetLead?.advanceAmount || 0,
+                customerDue: Math.max(0, (quote.finalCustomerPrice || 0) - (targetLead?.advanceAmount || 0)),
+                paymentStatus: (targetLead?.advanceAmount || 0) > 0 ? ((targetLead?.advanceAmount || 0) >= (quote.finalCustomerPrice || 0) ? 'PAID' : 'PARTIAL') : 'UNPAID'
             },
             vendorPaymentSummary: {
-                totalExpense: quote.totalVendorCost || 0,
-                paidExpense: 0,
-                remainingExpense: quote.totalVendorCost || 0
+                plannedVendorCost: totalPlannedVendorCost,
+                actualVendorCost: totalPlannedVendorCost,
+                totalPaidToVendors: 0,
+                vendorDue: totalPlannedVendorCost,
+                paymentStatus: 'NOT_PAID'
+            },
+            profitSummary: {
+                expectedProfit: quote.expectedProfit || 0,
+                actualRevenue: 0,
+                actualVendorExpense: 0,
+                additionalBusinessExpense: 0,
+                commissionIncome: quote.commissionTotal || 0,
+                actualProfit: 0,
+                profitStatus: 'ESTIMATED'
             },
             activityHistory: [{
                 type: 'CREATE',
@@ -1421,12 +1654,17 @@ app.patch('/admin/booking/:id/status', authenticateToken, requireRole(['CEO', 'M
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
         const { status, remarks } = req.body;
 
-        const validStatuses = ['PENDING', 'PREPARING', 'READY', 'TRIP_STARTED', 'COMPLETED', 'CANCELLED'];
+        const validStatuses = ['PENDING', 'PREPARING', 'READY', 'TRIP_STARTED', 'COMPLETED', 'CANCELLED', 'CONFIRMED'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ success: false, message: "Invalid booking status." });
         }
 
-        const booking = await Booking.findById(req.params.id);
+        const booking = await Booking.findOne({
+            $or: [
+                { _id: mongoose.Types.ObjectId.isValid(req.params.id) ? req.params.id : null },
+                { bookingNumber: req.params.id }
+            ]
+        });
         if (!booking) {
             return res.status(404).json({ success: false, message: "Booking not found." });
         }
@@ -1527,25 +1765,60 @@ app.get('/admin/vendors', authenticateToken, requireRole(['CEO', 'Manager']), as
 
         const filter = {};
         if (category && category !== 'ALL') {
-            filter.category = category.toUpperCase();
+            const catUpper = category.toUpperCase();
+            if (catUpper === 'BOAT' || catUpper === 'BOAT_RIDE') {
+                filter.category = { $in: ['BOAT', 'BOAT_RIDE'] };
+            } else if (catUpper === 'GUIDE' || catUpper === 'TOUR_GUIDE') {
+                filter.category = { $in: ['GUIDE', 'TOUR_GUIDE'] };
+            } else if (catUpper === 'SHOPPING' || catUpper === 'SHOPPING_PARTNER') {
+                filter.category = { $in: ['SHOPPING', 'SHOPPING_PARTNER'] };
+            } else if (catUpper === 'DARSHAN' || catUpper === 'VIP_DARSHAN') {
+                filter.category = { $in: ['DARSHAN', 'VIP_DARSHAN'] };
+            } else {
+                filter.category = catUpper;
+            }
         }
         if (status && status !== 'ALL') {
             filter.$or = [
                 { status: status.toUpperCase() },
                 { availabilityStatus: status }
             ];
-        }
-        if (search) {
+        } else if (req.user.role === 'Manager') {
             filter.$or = [
+                { status: 'ACTIVE' },
+                { availabilityStatus: 'Active' }
+            ];
+        }
+
+        if (search) {
+            const searchOr = [
                 { businessName: { $regex: search, $options: 'i' } },
                 { name: { $regex: search, $options: 'i' } },
                 { contactPerson: { $regex: search, $options: 'i' } },
                 { phone: { $regex: search, $options: 'i' } },
                 { mobile: { $regex: search, $options: 'i' } }
             ];
+            if (filter.$or) {
+                filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
+                delete filter.$or;
+            } else {
+                filter.$or = searchOr;
+            }
         }
 
-        const vendors = await Vendor.find(filter).sort({ createdAt: -1 });
+        let vendors = await Vendor.find(filter).sort({ createdAt: -1 }).lean();
+
+        // If caller is Manager, sanitize out CEO-confidential notes
+        if (req.user.role === 'Manager') {
+            vendors = vendors.map(v => {
+                if (v.metadata && v.metadata.ceoOnlyNotes) {
+                    const { ceoOnlyNotes: _ceoOnlyNotes, ...safeMetadata } = v.metadata;
+                    return { ...v, metadata: safeMetadata };
+                }
+                return v;
+            });
+        }
+
         return res.status(200).json({ success: true, vendors });
     } catch (error) {
         console.error("❌ Fetch Vendors Error:", error);
@@ -1553,15 +1826,38 @@ app.get('/admin/vendors', authenticateToken, requireRole(['CEO', 'Manager']), as
     }
 });
 
-// 2. Fetch Vendors by Category
+// 2. Fetch Vendors by Category (Active only for operations)
 app.get('/admin/vendors/category/:category', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
         const category = req.params.category.toUpperCase();
-        const vendors = await Vendor.find({
-            category,
+
+        let categoryQuery = category;
+        if (category === 'BOAT' || category === 'BOAT_RIDE') {
+            categoryQuery = { $in: ['BOAT', 'BOAT_RIDE'] };
+        } else if (category === 'GUIDE' || category === 'TOUR_GUIDE') {
+            categoryQuery = { $in: ['GUIDE', 'TOUR_GUIDE'] };
+        } else if (category === 'SHOPPING' || category === 'SHOPPING_PARTNER') {
+            categoryQuery = { $in: ['SHOPPING', 'SHOPPING_PARTNER'] };
+        } else if (category === 'DARSHAN' || category === 'VIP_DARSHAN') {
+            categoryQuery = { $in: ['DARSHAN', 'VIP_DARSHAN'] };
+        }
+
+        let vendors = await Vendor.find({
+            category: categoryQuery,
             $or: [{ status: 'ACTIVE' }, { availabilityStatus: 'Active' }]
-        }).sort({ name: 1 });
+        }).sort({ name: 1 }).lean();
+
+        if (req.user.role === 'Manager') {
+            vendors = vendors.map(v => {
+                if (v.metadata && v.metadata.ceoOnlyNotes) {
+                    const { ceoOnlyNotes: _ceoOnlyNotes, ...safeMetadata } = v.metadata;
+                    return { ...v, metadata: safeMetadata };
+                }
+                return v;
+            });
+        }
+
         return res.status(200).json({ success: true, vendors });
     } catch (error) {
         console.error("❌ Fetch Vendors by Category Error:", error);
@@ -1573,9 +1869,13 @@ app.get('/admin/vendors/category/:category', authenticateToken, requireRole(['CE
 app.get('/admin/vendor/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
-        const vendor = await Vendor.findById(req.params.id);
+        const vendor = await Vendor.findById(req.params.id).lean();
         if (!vendor) {
             return res.status(404).json({ success: false, message: "Vendor not found." });
+        }
+        if (req.user.role === 'Manager' && vendor.metadata && vendor.metadata.ceoOnlyNotes) {
+            const { ceoOnlyNotes: _ceoOnlyNotes, ...safeMetadata } = vendor.metadata;
+            vendor.metadata = safeMetadata;
         }
         return res.status(200).json({ success: true, vendor });
     } catch (error) {
@@ -1584,8 +1884,8 @@ app.get('/admin/vendor/:id', authenticateToken, requireRole(['CEO', 'Manager']),
     }
 });
 
-// 4. Create Vendor (CEO & Manager allowed)
-app.post('/admin/vendor/create', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+// 4. Create Vendor (Locked to CEO role)
+app.post('/admin/vendor/create', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
         const {
@@ -1600,8 +1900,10 @@ app.post('/admin/vendor/create', authenticateToken, requireRole(['CEO', 'Manager
             city,
             address,
             baseRate,
+            commercialModel,
             notes,
             services,
+            rateRules,
             metadata
         } = req.body;
 
@@ -1631,8 +1933,10 @@ app.post('/admin/vendor/create', authenticateToken, requireRole(['CEO', 'Manager
             status: 'ACTIVE',
             availabilityStatus: 'Active',
             baseRate: Number(baseRate) || 0,
+            commercialModel: commercialModel || 'SELLING_PRICE',
             notes: notes || '',
             services: services || [],
+            rateRules: rateRules || [],
             metadata: metadata || {},
             performance: {
                 totalAssignments: 0,
@@ -1656,8 +1960,8 @@ app.post('/admin/vendor/create', authenticateToken, requireRole(['CEO', 'Manager
     }
 });
 
-// 5. Update Vendor (PUT /admin/vendor/:id)
-app.put('/admin/vendor/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+// 5. Update Vendor (Locked to CEO role)
+app.put('/admin/vendor/:id', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
         const updateData = { ...req.body };
@@ -1676,8 +1980,8 @@ app.put('/admin/vendor/:id', authenticateToken, requireRole(['CEO', 'Manager']),
     }
 });
 
-// 6. Update Vendor Status (PATCH /admin/vendor/:id/status)
-app.patch('/admin/vendor/:id/status', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+// 6. Update Vendor Status (Locked to CEO role)
+app.patch('/admin/vendor/:id/status', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
         const { status } = req.body;
@@ -1764,7 +2068,6 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
     try {
         const CustomerPayment = mongoose.model('CustomerPayment', CustomerPaymentSchema, 'customer_payments');
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
-        const Lead = Enquiry;
 
         const { bookingId, amount, paymentMethod, paymentDate, referenceNumber, notes } = req.body;
         const numAmount = Number(amount);
@@ -1773,7 +2076,86 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
             return res.status(400).json({ success: false, message: "Valid bookingId and positive payment amount are required." });
         }
 
-        const booking = await Booking.findOne({ $or: [{ _id: mongoose.Types.ObjectId.isValid(bookingId) ? bookingId : null }, { bookingNumber: bookingId }] });
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (paymentDate && paymentDate > todayStr) {
+            return res.status(400).json({ success: false, message: "Payment date cannot be in the future." });
+        }
+
+        const cleanMethod = (paymentMethod || 'UPI').toUpperCase();
+        if (['UPI', 'BANK_TRANSFER', 'CARD'].includes(cleanMethod) && (!referenceNumber || !referenceNumber.trim())) {
+            return res.status(400).json({ success: false, message: "Transaction reference / UTR number is required for UPI and Bank/Card payments." });
+        }
+
+        // Duplicate payment reference check (for non-cash payments)
+        if (['UPI', 'BANK_TRANSFER', 'CARD'].includes(cleanMethod) && referenceNumber && referenceNumber.trim()) {
+            const existingPayment = await CustomerPayment.findOne({
+                referenceNumber: referenceNumber.trim(),
+                status: 'COMPLETED'
+            });
+            if (existingPayment) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Payment with reference / UTR number "${referenceNumber.trim()}" has already been recorded.`
+                });
+            }
+        }
+
+        let booking = await Booking.findOne({
+            $or: [
+                { _id: mongoose.Types.ObjectId.isValid(bookingId) ? bookingId : null },
+                { bookingNumber: bookingId },
+                { leadId: bookingId },
+                { customerId: bookingId }
+            ]
+        });
+
+        // If not found in Booking collection, attempt auto-initialization from Lead
+        if (!booking) {
+            let targetLead = null;
+            if (mongoose.Types.ObjectId.isValid(bookingId)) {
+                for (const model of Object.values(modelsMap)) {
+                    targetLead = await model.findById(bookingId);
+                    if (targetLead) break;
+                }
+            }
+
+            if (targetLead) {
+                const year = new Date().getFullYear();
+                const bookingNumber = `VY-B-${year}-${Date.now().toString().slice(-4)}`;
+                const pkgPrice = Number(targetLead.totalAmount) || Number(targetLead.advancePaid) || numAmount;
+
+                booking = new Booking({
+                    bookingNumber,
+                    leadId: targetLead._id.toString(),
+                    customerId: targetLead._id.toString(),
+                    customerDetails: {
+                        name: targetLead.name || 'Valued Client',
+                        phone: targetLead.mobile || '',
+                        email: targetLead.email || '',
+                        city: targetLead.city || ''
+                    },
+                    travelDetails: {
+                        travelDate: targetLead.date || '',
+                        travelers: targetLead.travelers || '1',
+                        tripDuration: '3 Days / 2 Nights'
+                    },
+                    packageDetails: {
+                        packageName: targetLead.destination ? `${targetLead.destination} Special` : 'Varanasi Yatra Package',
+                        packageType: 'CUSTOM',
+                        finalCustomerPrice: pkgPrice
+                    },
+                    bookingStatus: 'CONFIRMED',
+                    customerPaymentSummary: {
+                        packagePrice: pkgPrice,
+                        totalPaid: 0,
+                        customerDue: pkgPrice,
+                        paymentStatus: 'UNPAID'
+                    }
+                });
+                await booking.save();
+            }
+        }
+
         if (!booking) {
             return res.status(404).json({ success: false, message: "Booking not found." });
         }
@@ -1784,9 +2166,9 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
             bookingId: booking._id.toString(),
             customerId: booking.customerId || '',
             amount: numAmount,
-            paymentMethod: paymentMethod || 'UPI',
-            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
-            referenceNumber: referenceNumber || '',
+            paymentMethod: cleanMethod,
+            paymentDate: paymentDate || todayStr,
+            referenceNumber: referenceNumber ? referenceNumber.trim() : (cleanMethod === 'CASH' ? 'CASH-COLLECTED' : ''),
             notes: notes || '',
             status: 'COMPLETED',
             receivedBy: `${req.user.role}: ${req.user.name}`
@@ -1795,44 +2177,62 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
 
         // Recalculate Customer Payment Summary
         const allCustomerPayments = await CustomerPayment.find({ bookingId: booking._id.toString() });
-        const packagePrice = booking.packageDetails?.finalCustomerPrice || 0;
+        const packagePrice = booking.packageDetails?.finalCustomerPrice || booking.customerPaymentSummary?.packagePrice || 0;
         const totalPaid = allCustomerPayments.reduce((sum, p) => sum + p.amount, 0);
-        const customerDue = packagePrice - totalPaid;
+        const customerDue = Math.max(0, packagePrice - totalPaid);
 
         let paymentStatus = 'UNPAID';
         if (totalPaid === 0) paymentStatus = 'UNPAID';
         else if (totalPaid > 0 && totalPaid < packagePrice) paymentStatus = 'PARTIAL';
-        else if (totalPaid === packagePrice) paymentStatus = 'PAID';
         else if (totalPaid > packagePrice) paymentStatus = 'OVERPAID';
+        else if (totalPaid === packagePrice && packagePrice > 0) paymentStatus = 'PAID';
 
         booking.customerPaymentSummary = {
             packagePrice,
             totalPaid,
-            customerDue: Math.max(0, customerDue),
+            customerDue,
             paymentStatus
         };
 
         booking.activityHistory.push({
             type: 'PAYMENT_RECORDED',
-            message: `Customer Payment Recorded: ₹${numAmount.toLocaleString('en-IN')} via ${paymentMethod || 'UPI'}${referenceNumber ? ` (Ref: ${referenceNumber})` : ''}`,
+            message: `Customer Payment Recorded: ₹${numAmount.toLocaleString('en-IN')} via ${cleanMethod}${referenceNumber ? ` (Ref: ${referenceNumber})` : ''}`,
             timestamp: new Date().toISOString(),
             performedBy: `${req.user.role}: ${req.user.name}`
         });
 
         await booking.save();
 
-        // Update associated lead
+        // Update associated lead across all lead models
         if (booking.leadId) {
-            await Lead.findByIdAndUpdate(booking.leadId, {
-                paymentStatus,
-                advancePaid: totalPaid
-            });
+            for (const model of Object.values(modelsMap)) {
+                const foundLead = await model.findById(booking.leadId);
+                if (foundLead) {
+                    foundLead.paymentStatus = paymentStatus;
+                    foundLead.advancePaid = totalPaid;
+                    foundLead.advanceAmount = totalPaid;
+                    foundLead.remainingAmount = customerDue;
+                    await foundLead.save();
+                    break;
+                }
+            }
         }
+
+        // ⚡ Trigger PAYMENT_RECEIVED Automation Event asynchronously
+        triggerAutomationEvent('PAYMENT_RECEIVED', {
+            paymentId: newPayment.paymentId,
+            bookingId: booking.bookingNumber,
+            customerName: booking.customerDetails?.name || 'Valued Customer',
+            mobile: booking.customerDetails?.mobile || '',
+            paidAmount: numAmount,
+            amountDue: customerDue
+        }, `PAYMENT_RECEIVED:${newPayment.paymentId}`).catch(err => console.error("⚠️ Payment automation trigger error:", err.message));
 
         return res.status(200).json({
             success: true,
             message: `Payment of ₹${numAmount.toLocaleString('en-IN')} recorded successfully!`,
             payment: newPayment,
+            booking,
             customerPaymentSummary: booking.customerPaymentSummary
         });
     } catch (error) {
@@ -1841,8 +2241,8 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
     }
 });
 
-// 3. Fetch Vendor Payments for Booking
-app.get('/admin/booking/:bookingId/vendor-payments', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+// 3. Fetch Vendor Payments for Booking (CEO Only)
+app.get('/admin/booking/:bookingId/vendor-payments', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
         const payments = await VendorPayment.find({ bookingId: req.params.bookingId }).sort({ paymentDate: -1 });
@@ -1853,9 +2253,8 @@ app.get('/admin/booking/:bookingId/vendor-payments', authenticateToken, requireR
     }
 });
 
-// 4. Record Vendor Payment (POST /admin/booking/vendor-payment - CEO/Authorized)
-app.post('/admin/booking/vendor-payment', financialLimiter, authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
-
+// 4. Record Vendor Payment (POST /admin/booking/vendor-payment - CEO Only)
+app.post('/admin/booking/vendor-payment', financialLimiter, authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
@@ -1889,9 +2288,21 @@ app.post('/admin/booking/vendor-payment', financialLimiter, authenticateToken, r
         });
         await newPayment.save();
 
-        // Recalculate Vendor Payment Summary
+        // Recalculate Vendor Payment Summary with defensive planned cost fallback
         const allVendorPayments = await VendorPayment.find({ bookingId: booking._id.toString() });
-        const plannedVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.plannedCost || 0), 0);
+        let plannedVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.plannedCost || 0), 0);
+        if (plannedVendorCost === 0 && Array.isArray(booking.services) && booking.services.length > 0) {
+            plannedVendorCost = booking.services.reduce((sum, s) => {
+                const model = s.commercialModel || 'SELLING_PRICE';
+                if (model === 'CUSTOMER_DIRECT' || model === 'COMMISSION') return sum;
+                const qty = Number(s.quantity) || 1;
+                const cost = Number(s.negotiatedVendorCost || s.referenceCost || s.vendorCostSnapshot || 0);
+                return sum + (cost * qty);
+            }, 0);
+        }
+        if (plannedVendorCost === 0 && booking.vendorPaymentSummary?.plannedVendorCost > 0) {
+            plannedVendorCost = booking.vendorPaymentSummary.plannedVendorCost;
+        }
         const actualVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.actualCost || v.plannedCost || 0), 0) || plannedVendorCost;
         const totalPaidToVendors = allVendorPayments.reduce((sum, p) => sum + p.amount, 0);
         const vendorDue = actualVendorCost - totalPaidToVendors;
@@ -1931,8 +2342,8 @@ app.post('/admin/booking/vendor-payment', financialLimiter, authenticateToken, r
     }
 });
 
-// 5. Fetch Business Expenses (GET /admin/expenses)
-app.get('/admin/expenses', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+// 5. Fetch Business Expenses (GET /admin/expenses - CEO Only)
+app.get('/admin/expenses', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
         const { bookingId, category, search } = req.query;
@@ -1956,8 +2367,8 @@ app.get('/admin/expenses', authenticateToken, requireRole(['CEO', 'Manager']), a
     }
 });
 
-// 6. Record Business Expense (POST /admin/expense/create)
-app.post('/admin/expense/create', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+// 6. Record Business Expense (POST /admin/expense/create - CEO Only)
+app.post('/admin/expense/create', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
@@ -2052,16 +2463,29 @@ app.get('/admin/booking/:bookingId/financial-summary', authenticateToken, requir
         const vendorPayments = await VendorPayment.find({ bookingId: bId });
         const expenses = await BusinessExpense.find({ bookingId: bId });
 
-        const plannedVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.plannedCost || 0), 0);
+        let plannedVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.plannedCost || 0), 0);
+        if (plannedVendorCost === 0 && Array.isArray(booking.services) && booking.services.length > 0) {
+            plannedVendorCost = booking.services.reduce((sum, s) => {
+                const model = s.commercialModel || 'SELLING_PRICE';
+                if (model === 'CUSTOMER_DIRECT' || model === 'COMMISSION') return sum;
+                const qty = Number(s.quantity) || 1;
+                const cost = Number(s.negotiatedVendorCost || s.referenceCost || s.vendorCostSnapshot || 0);
+                return sum + (cost * qty);
+            }, 0);
+        }
+        if (plannedVendorCost === 0 && booking.vendorPaymentSummary?.plannedVendorCost > 0) {
+            plannedVendorCost = booking.vendorPaymentSummary.plannedVendorCost;
+        }
+
         const actualVendorCost = (booking.vendorAssignments || []).reduce((sum, v) => sum + (v.actualCost || v.plannedCost || 0), 0) || plannedVendorCost;
         const vendorPaid = vendorPayments.reduce((sum, p) => sum + p.amount, 0);
         const vendorDue = actualVendorCost - vendorPaid;
 
-        const expectedProfit = packagePrice - plannedVendorCost;
+        const commissionIncome = booking.profitSummary?.commissionIncome || booking.shoppingCommission?.expectedCommission || (booking.services || []).reduce((sum, s) => sum + (s.commercialModel === 'COMMISSION' ? (Number(s.commissionAmount) || 0) : 0), 0);
+        const expectedProfit = (packagePrice - plannedVendorCost) + commissionIncome;
         const actualRevenue = totalPaid;
         const actualVendorExpense = vendorPaid > 0 ? vendorPaid : actualVendorCost;
         const additionalBusinessExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
-        const commissionIncome = booking.shoppingCommission?.expectedCommission || 0;
 
         const actualProfit = actualRevenue - actualVendorExpense - additionalBusinessExpense + commissionIncome;
 
@@ -2115,6 +2539,9 @@ app.get('/admin/dashboard/manager', authenticateToken, requireRole(['CEO', 'Mana
         const sanitizedBookings = bookings.map(b => ({
             _id: b._id,
             bookingNumber: b.bookingNumber,
+            leadId: b.leadId,
+            quoteId: b.quoteId,
+            customerId: b.customerId,
             customerDetails: b.customerDetails,
             travelDetails: b.travelDetails,
             packageDetails: {

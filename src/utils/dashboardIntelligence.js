@@ -122,14 +122,36 @@ export function calculateCEODashboard({
     }, 0);
 
     const commissionIncome = (bookings || []).reduce((sum, b) => {
-        return sum + (b.shoppingCommission?.expectedCommission || 0);
+        if (b.bookingStatus === 'CANCELLED') return sum;
+        const comm = b.profitSummary?.commissionIncome !== undefined 
+            ? b.profitSummary.commissionIncome 
+            : (b.shoppingCommission?.expectedCommission || 
+               (b.services || []).reduce((sSum, s) => sSum + (s.commercialModel === 'COMMISSION' ? (Number(s.commissionAmount) || 0) : 0), 0));
+        return sum + comm;
+    }, 0);
+
+    const plannedVendorCost = (bookings || []).reduce((sum, b) => {
+        if (b.bookingStatus === 'CANCELLED') return sum;
+        let pCost = b.vendorPaymentSummary?.plannedVendorCost || 0;
+        if (pCost === 0 && Array.isArray(b.vendorAssignments) && b.vendorAssignments.length > 0) {
+            pCost = b.vendorAssignments.reduce((vSum, v) => vSum + (Number(v.plannedCost) || 0), 0);
+        }
+        if (pCost === 0 && Array.isArray(b.services) && b.services.length > 0) {
+            pCost = b.services.reduce((sSum, s) => {
+                const model = s.commercialModel || 'SELLING_PRICE';
+                if (model === 'CUSTOMER_DIRECT' || model === 'COMMISSION') return sSum;
+                const qty = Number(s.quantity) || 1;
+                const cost = Number(s.negotiatedVendorCost || s.referenceCost || s.vendorCostSnapshot || 0);
+                return sSum + (cost * qty);
+            }, 0);
+        }
+        return sum + pCost;
     }, 0);
 
     const netCashPosition = customerCashCollected + commissionIncome - vendorPaymentsMade - businessExpenses;
     const actualProfit = customerCashCollected - vendorPaymentsMade - businessExpenses + commissionIncome;
 
-    const plannedVendorCost = (bookings || []).reduce((sum, b) => sum + (b.vendorPaymentSummary?.plannedVendorCost || 0), 0);
-    const expectedProfit = totalRevenue - plannedVendorCost;
+    const expectedProfit = totalRevenue - plannedVendorCost + commissionIncome;
     const profitVariance = actualProfit - expectedProfit;
 
     let profitStatus = 'ON_TRACK';
@@ -190,6 +212,19 @@ export function calculateCEODashboard({
     });
 
     return {
+        totalRevenue,
+        expectedRevenue: totalRevenue,
+        plannedVendorCost,
+        customerCashCollected,
+        customerOutstanding,
+        customerDue: customerOutstanding,
+        vendorPaymentsMade,
+        vendorOutstanding,
+        expectedProfit,
+        actualProfit,
+        profitVariance,
+        totalBookings: (bookings || []).length,
+        activeBookings: (bookings || []).filter(b => b.bookingStatus !== 'CANCELLED').length,
         financialCommandStrip: {
             totalRevenue,
             customerCashCollected,
@@ -199,12 +234,14 @@ export function calculateCEODashboard({
             businessExpenses,
             commissionIncome,
             netCashPosition,
-            actualProfit
+            actualProfit,
+            plannedVendorCost
         },
         profitPerformance: {
             expectedProfit,
             actualProfit,
             profitVariance,
+            plannedVendorCost,
             status: profitStatus
         },
         businessFunnel: {

@@ -1,10 +1,13 @@
 import React from 'react';
 import DocumentStatusBadge from './DocumentStatusBadge';
+import { tokenStorage } from '../../../services/crmApi';
 
 export default function DocumentPreview({ document, onClose }) {
     if (!document) return null;
 
-    const downloadUrl = `/admin/documents/${document.documentId}?download=true`;
+    const BASE_URL = import.meta.env.VITE_API_URL || 'https://api-gzo7qrxiuq-uc.a.run.app';
+    const token = tokenStorage.getAccessToken() || '';
+    const downloadUrl = `${BASE_URL}/admin/documents/${document.documentId}?download=true&token=${token}`;
 
     return (
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-4">

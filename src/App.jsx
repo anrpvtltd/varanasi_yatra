@@ -69,42 +69,16 @@ function Homepage() {
   );
 }
 
-export default function App() {
-  const [showScrollTop, setShowScrollTop] = useState(false);
-
-  // Monitor scroll position to toggle back-to-top shortcut button
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Check if URL search parameters ask for admin dashboard CRM view
-  const isAdminView = window.location.search.includes('admin') || window.location.hash.includes('admin');
-
-  if (isAdminView) {
-    // Redirect legacy URL parameter to new Operations Portal route
-    window.location.replace('/operations');
-    return null;
-  }
+// 🛡️ App Content Shell that conditionally adjusts layout for CRM vs Public Website
+function AppContent({ showScrollTop, scrollToTop }) {
+  const location = useLocation();
+  const isCRM = ['/operations', '/admin', '/crm'].includes(location.pathname);
 
   return (
-    <BrowserRouter>
-      <ScrollToTop />
-      
-      <div className="min-h-screen bg-[#faf8f5] font-sans antialiased text-stone-800 selection:bg-orange-600 selection:text-white">
+    <div className={`min-h-screen ${isCRM ? 'bg-stone-900 text-stone-100' : 'bg-[#faf8f5] text-stone-800'} font-sans antialiased selection:bg-orange-600 selection:text-white`}>
 
-        {/* FLOATING ACTION SUPPORT SHORTCUT GROUP */}
+      {/* FLOATING ACTION SUPPORT SHORTCUT GROUP - Only on Public Website */}
+      {!isCRM && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-3">
           {/* Back To Top Button */}
           {showScrollTop && (
@@ -143,26 +117,96 @@ export default function App() {
             </svg>
           </a>
         </div>
+      )}
 
+      {/* HEADER: Public Marketing Header on Website; Dedicated Enterprise Header on CRM */}
+      {!isCRM ? (
         <Header />
-        
-        <main>
-          <Routes>
-            <Route path="/" element={<Homepage />} />
-            <Route path="/destinations/:id" element={<DestinationTemplate />} />
-            <Route path="/packages/:id" element={<PackageTemplate />} />
-            <Route path="/operations" element={<AdminCRM />} />
-            <Route path="/admin" element={<AdminCRM />} />
-            <Route path="/crm" element={<AdminCRM />} />
-            
-            {/* Dynamic Catch-all Redirect to Home */}
-            <Route path="*" element={<Homepage />} />
-          </Routes>
-        </main>
-        
-        <Footer />
+      ) : (
+        <header className="bg-stone-950 text-white sticky top-0 z-40 border-b border-stone-800 shadow-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <span className="text-xl">🚩</span>
+              <div>
+                <h1 className="text-sm font-serif font-extrabold tracking-wider text-amber-100 uppercase leading-none">
+                  Banaras Yatra
+                </h1>
+                <span className="text-[9px] uppercase font-bold tracking-widest text-amber-500 block mt-0.5">
+                  Internal Enterprise CRM & Operations
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                ● Operations Active
+              </span>
+              <a
+                href="/"
+                className="text-stone-400 hover:text-amber-400 text-xs font-bold transition flex items-center space-x-1"
+                title="Navigate to public website"
+              >
+                <span>←</span>
+                <span>Public Website</span>
+              </a>
+            </div>
+          </div>
+        </header>
+      )}
+      
+      <main>
+        <Routes>
+          <Route path="/" element={<Homepage />} />
+          <Route path="/destinations/:id" element={<DestinationTemplate />} />
+          <Route path="/packages/:id" element={<PackageTemplate />} />
+          <Route path="/operations" element={<AdminCRM />} />
+          <Route path="/admin" element={<AdminCRM />} />
+          <Route path="/crm" element={<AdminCRM />} />
+          
+          {/* Dynamic Catch-all Redirect to Home */}
+          <Route path="*" element={<Homepage />} />
+        </Routes>
+      </main>
+      
+      {/* FOOTER: Only on Public Website */}
+      {!isCRM && <Footer />}
 
-      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Monitor scroll position to toggle back-to-top shortcut button
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Check if URL search parameters ask for admin dashboard CRM view
+  const isAdminView = window.location.search.includes('admin') || window.location.hash.includes('admin');
+
+  if (isAdminView) {
+    // Redirect legacy URL parameter to new Operations Portal route
+    window.location.replace('/operations');
+    return null;
+  }
+
+  return (
+    <BrowserRouter>
+      <ScrollToTop />
+      <AppContent showScrollTop={showScrollTop} scrollToTop={scrollToTop} />
     </BrowserRouter>
   );
 }

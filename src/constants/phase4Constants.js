@@ -12,9 +12,9 @@ export const PACKAGE_TEMPLATES = {
         icon: '🚗',
         desc: 'For self-arranging clients needing transport & local assistance.',
         defaultServices: [
-            { category: 'TRANSPORT', serviceName: 'Private Car Transport', vendorName: 'Local Fleet', quantity: 3, unit: 'Days', vendorCost: 2000, customerDisplayName: 'Private AC Sedan Car (3 Days)' },
-            { category: 'DRIVER', serviceName: 'Dedicated Driver', vendorName: 'Varanasi Drivers', quantity: 3, unit: 'Days', vendorCost: 500, customerDisplayName: 'Professional Local Driver (3 Days)' },
-            { category: 'OTHER', serviceName: 'Temple Assistance', vendorName: 'Varanasi Yatra Team', quantity: 1, unit: 'Trip', vendorCost: 500, customerDisplayName: 'Kashi Vishwanath Temple Assistance' }
+            { category: 'TRANSPORT', commercialModel: 'FIXED_VENDOR_RATE', serviceName: 'Private Car Transport', vendorName: 'Local Fleet', quantity: 3, unit: 'Days', vendorCost: 2000, referenceCost: 2000, customerSellingPrice: 2500, customerDisplayName: 'Private AC Sedan Car (3 Days)' },
+            { category: 'DRIVER', commercialModel: 'FIXED_VENDOR_RATE', serviceName: 'Dedicated Driver', vendorName: 'Varanasi Drivers', quantity: 3, unit: 'Days', vendorCost: 500, referenceCost: 500, customerSellingPrice: 500, customerDisplayName: 'Professional Local Driver (3 Days)' },
+            { category: 'OTHER', commercialModel: 'SELLING_PRICE', serviceName: 'Temple Assistance', vendorName: 'Varanasi Yatra Team', quantity: 1, unit: 'Trip', vendorCost: 500, referenceCost: 500, customerSellingPrice: 1000, customerDisplayName: 'Kashi Vishwanath Temple Assistance' }
         ],
         defaultMargin: 1500
     },
@@ -24,10 +24,10 @@ export const PACKAGE_TEMPLATES = {
         icon: '🏨',
         desc: 'Convenient trip with hotel accommodation & transport.',
         defaultServices: [
-            { category: 'HOTEL', serviceName: '3-Star Deluxe Hotel', vendorName: 'Hotel Clarks / Similar', quantity: 2, unit: 'Nights', vendorCost: 2500, customerDisplayName: 'Deluxe AC Room with Breakfast (2 Nights)' },
-            { category: 'TRANSPORT', serviceName: 'Private Car Transport', vendorName: 'Local Fleet', quantity: 3, unit: 'Days', vendorCost: 2000, customerDisplayName: 'Private AC Sedan Car (3 Days)' },
-            { category: 'DRIVER', serviceName: 'Dedicated Driver', vendorName: 'Varanasi Drivers', quantity: 3, unit: 'Days', vendorCost: 500, customerDisplayName: 'Professional Local Driver (3 Days)' },
-            { category: 'OTHER', serviceName: 'Temple Assistance', vendorName: 'Varanasi Yatra Team', quantity: 1, unit: 'Trip', vendorCost: 500, customerDisplayName: 'VIP Temple Facilitation' }
+            { category: 'HOTEL', commercialModel: 'SELLING_PRICE', serviceName: '3-Star Deluxe Hotel', vendorName: 'Hotel Clarks / Similar', quantity: 2, unit: 'Nights', vendorCost: 2500, referenceCost: 2500, customerSellingPrice: 3200, customerDisplayName: 'Deluxe AC Room with Breakfast (2 Nights)' },
+            { category: 'TRANSPORT', commercialModel: 'FIXED_VENDOR_RATE', serviceName: 'Private Car Transport', vendorName: 'Local Fleet', quantity: 3, unit: 'Days', vendorCost: 2000, referenceCost: 2000, customerSellingPrice: 2500, customerDisplayName: 'Private AC Sedan Car (3 Days)' },
+            { category: 'DRIVER', commercialModel: 'FIXED_VENDOR_RATE', serviceName: 'Dedicated Driver', vendorName: 'Varanasi Drivers', quantity: 3, unit: 'Days', vendorCost: 500, referenceCost: 500, customerSellingPrice: 500, customerDisplayName: 'Professional Local Driver (3 Days)' },
+            { category: 'OTHER', commercialModel: 'SELLING_PRICE', serviceName: 'Temple Assistance', vendorName: 'Varanasi Yatra Team', quantity: 1, unit: 'Trip', vendorCost: 500, referenceCost: 500, customerSellingPrice: 1000, customerDisplayName: 'VIP Temple Facilitation' }
         ],
         defaultMargin: 2500
     },
@@ -37,11 +37,11 @@ export const PACKAGE_TEMPLATES = {
         icon: '👑',
         desc: 'Hero Package — Everything handled seamlessly for the guest.',
         defaultServices: [
-            { category: 'HOTEL', serviceName: 'Premium Heritage / 4-Star Hotel', vendorName: 'Hotel Taj / Clarks', quantity: 2, unit: 'Nights', vendorCost: 3500, customerDisplayName: 'Premium Heritage AC Room with Breakfast (2 Nights)' },
-            { category: 'TRANSPORT', serviceName: 'Innova Crysta / AC Vehicle', vendorName: 'Varanasi Luxury Transport', quantity: 3, unit: 'Days', vendorCost: 3000, customerDisplayName: 'Innova Crysta AC Vehicle (3 Days)' },
-            { category: 'DRIVER', serviceName: 'Dedicated Uniformed Driver', vendorName: 'Varanasi Drivers', quantity: 3, unit: 'Days', vendorCost: 667, customerDisplayName: 'Dedicated Experienced Driver (3 Days)' },
-            { category: 'PANDIT', serviceName: 'Special Puja & Sankalp', vendorName: 'Pt. Ramesh Shastri', quantity: 1, unit: 'Session', vendorCost: 1500, customerDisplayName: 'Special Kashi Ritual Puja & Sankalp' },
-            { category: 'VIP_DARSHAN', serviceName: 'Kashi Vishwanath VIP Darshan', vendorName: 'Trust VIP Pass', quantity: 2, unit: 'Passes', vendorCost: 500, customerDisplayName: 'Kashi Vishwanath Temple VIP Fast-Track Darshan' }
+            { category: 'HOTEL', commercialModel: 'SELLING_PRICE', serviceName: 'Premium Heritage / 4-Star Hotel', vendorName: 'Hotel Taj / Clarks', quantity: 2, unit: 'Nights', vendorCost: 3500, referenceCost: 3500, customerSellingPrice: 4200, customerDisplayName: 'Premium Heritage AC Room with Breakfast (2 Nights)' },
+            { category: 'TRANSPORT', commercialModel: 'FIXED_VENDOR_RATE', serviceName: 'Innova Crysta / AC Vehicle', vendorName: 'Varanasi Luxury Transport', quantity: 3, unit: 'Days', vendorCost: 3000, referenceCost: 3000, customerSellingPrice: 3500, customerDisplayName: 'Innova Crysta AC Vehicle (3 Days)' },
+            { category: 'DRIVER', commercialModel: 'FIXED_VENDOR_RATE', serviceName: 'Dedicated Uniformed Driver', vendorName: 'Varanasi Drivers', quantity: 3, unit: 'Days', vendorCost: 667, referenceCost: 667, customerSellingPrice: 800, customerDisplayName: 'Dedicated Experienced Driver (3 Days)' },
+            { category: 'PANDIT', commercialModel: 'CUSTOMER_DIRECT', serviceName: 'Special Puja & Sankalp', vendorName: 'Pt. Ramesh Shastri', quantity: 1, unit: 'Session', vendorCost: 0, referenceCost: 0, customerSellingPrice: 0, customerDisplayName: 'Special Kashi Ritual Puja & Sankalp (Direct Coordination)' },
+            { category: 'VIP_DARSHAN', commercialModel: 'PASS_THROUGH', serviceName: 'Kashi Vishwanath VIP Darshan', vendorName: 'Trust VIP Pass', quantity: 2, unit: 'Passes', vendorCost: 500, referenceCost: 500, passThroughAmount: 500, customerSellingPrice: 500, customerDisplayName: 'Kashi Vishwanath Temple VIP Fast-Track Darshan Pass' }
         ],
         defaultMargin: 3500
     },
@@ -70,16 +70,57 @@ export const SERVICE_CATEGORIES = {
     CUSTOM_SERVICE: 'Custom Service'
 };
 
+export const RESOURCE_CATEGORIES = {
+    HOTEL: 'HOTEL',
+    TRANSPORT: 'TRANSPORT',
+    PANDIT: 'PANDIT',
+    BOAT: 'BOAT',
+    GUIDE: 'GUIDE',
+    SHOPPING: 'SHOPPING',
+    DARSHAN: 'DARSHAN',
+    OTHER: 'OTHER',
+    LEAD_PARTNER: 'LEAD_PARTNER'
+};
+
+export const RESOURCE_CATEGORY_LABELS = {
+    HOTEL: '🏨 Hotels',
+    TRANSPORT: '🚗 Transport',
+    PANDIT: '🪔 Pandits',
+    BOAT: '⛵ Boats',
+    GUIDE: '🚩 Guides',
+    SHOPPING: '🛍️ Shopping Partners',
+    DARSHAN: '🛕 Darshan / Passes',
+    OTHER: '✨ Other Services',
+    LEAD_PARTNER: '🤝 Lead Partners'
+};
+
+export const CATEGORY_DEFAULT_COMMERCIAL_MODELS = {
+    HOTEL: 'SELLING_PRICE',
+    TRANSPORT: 'FIXED_VENDOR_RATE',
+    PANDIT: 'CUSTOMER_DIRECT',
+    BOAT: 'SELLING_PRICE',
+    GUIDE: 'SELLING_PRICE',
+    SHOPPING: 'COMMISSION',
+    DARSHAN: 'PASS_THROUGH',
+    OTHER: 'SELLING_PRICE',
+    LEAD_PARTNER: 'COMMISSION'
+};
+
 export const VENDOR_CATEGORIES = {
     HOTEL: 'HOTEL',
     TRANSPORT: 'TRANSPORT',
     CAR: 'CAR',
     DRIVER: 'DRIVER',
     PANDIT: 'PANDIT',
-    VIP_DARSHAN: 'VIP_DARSHAN',
+    BOAT: 'BOAT',
     BOAT_RIDE: 'BOAT_RIDE',
+    GUIDE: 'GUIDE',
     TOUR_GUIDE: 'TOUR_GUIDE',
+    SHOPPING: 'SHOPPING',
     SHOPPING_PARTNER: 'SHOPPING_PARTNER',
+    DARSHAN: 'DARSHAN',
+    VIP_DARSHAN: 'VIP_DARSHAN',
+    LEAD_PARTNER: 'LEAD_PARTNER',
     AIRPORT_PICKUP: 'AIRPORT_PICKUP',
     RAILWAY_PICKUP: 'RAILWAY_PICKUP',
     OTHER: 'OTHER'
@@ -91,10 +132,15 @@ export const VENDOR_CATEGORY_LABELS = {
     CAR: '🚘 Car / Cab Operator',
     DRIVER: '👨‍✈️ Dedicated Driver',
     PANDIT: '🪔 Pandit / Ritual Puja',
-    VIP_DARSHAN: '🛕 VIP Darshan Facilitator',
+    BOAT: '⛵ Ganga Boat Operator',
     BOAT_RIDE: '⛵ Ganga Boat Operator',
+    GUIDE: '🚩 Local Tour Guide',
     TOUR_GUIDE: '🚩 Local Tour Guide',
+    SHOPPING: '🛍️ Shopping Partner',
     SHOPPING_PARTNER: '🛍️ Shopping Partner',
+    DARSHAN: '🛕 Darshan / Pass Facilitator',
+    VIP_DARSHAN: '🛕 VIP Darshan Facilitator',
+    LEAD_PARTNER: '🤝 Lead Partner / Travel Agent',
     AIRPORT_PICKUP: '✈️ Airport Transfer Provider',
     RAILWAY_PICKUP: '🚆 Station Transfer Provider',
     OTHER: '✨ Service Partner'
@@ -123,19 +169,37 @@ export const COMMISSION_TYPES = {
     FIXED: 'FIXED'
 };
 
+export const COMMERCIAL_MODELS = {
+    SELLING_PRICE: 'SELLING_PRICE',
+    FIXED_VENDOR_RATE: 'FIXED_VENDOR_RATE',
+    VENDOR_QUOTE_REQUIRED: 'VENDOR_QUOTE_REQUIRED',
+    CUSTOMER_DIRECT: 'CUSTOMER_DIRECT',
+    COMMISSION: 'COMMISSION',
+    PASS_THROUGH: 'PASS_THROUGH'
+};
+
+export const COMMERCIAL_MODEL_LABELS = {
+    SELLING_PRICE: 'Selling Price (Manager Sets Rate)',
+    FIXED_VENDOR_RATE: 'Fixed Vendor Rate',
+    VENDOR_QUOTE_REQUIRED: 'Vendor Quote Required (Custom Route)',
+    CUSTOMER_DIRECT: 'Customer Direct (₹0 in Package)',
+    COMMISSION: 'Partner Commission (₹0 in Package)',
+    PASS_THROUGH: 'Pass-Through (Zero Company Margin)'
+};
+
 export const DEFAULT_SERVICES = [
-    { id: 'HOTEL', label: 'Hotel Accommodation', icon: '🏨', defaultUnit: 'Nights' },
-    { id: 'TRANSPORT', label: 'Car / Transport', icon: '🚗', defaultUnit: 'Days' },
-    { id: 'DRIVER', label: 'Dedicated Driver', icon: '🚖', defaultUnit: 'Days' },
-    { id: 'PANDIT', label: 'Pandit / Ritual Puja', icon: '🪔', defaultUnit: 'Session' },
-    { id: 'VIP_DARSHAN', label: 'VIP Darshan Pass', icon: '🛕', defaultUnit: 'Passes' },
-    { id: 'BOAT_RIDE', label: 'Ganga Boat Ride', icon: '⛵', defaultUnit: 'Ride' },
-    { id: 'TOUR_GUIDE', label: 'Local Tour Guide', icon: '🚩', defaultUnit: 'Days' },
-    { id: 'SHOPPING', label: 'Shopping Partner', icon: '🛍️', defaultUnit: 'Session' },
-    { id: 'AIRPORT_PICKUP', label: 'Airport Transfer', icon: '✈️', defaultUnit: 'Trip' },
-    { id: 'RAILWAY_PICKUP', label: 'Station Transfer', icon: '🚆', defaultUnit: 'Trip' },
-    { id: 'EXTRA_DAY', label: 'Extra Extension Day', icon: '📅', defaultUnit: 'Days' },
-    { id: 'CUSTOM_SERVICE', label: 'Custom Service', icon: '✨', defaultUnit: 'Item' }
+    { id: 'HOTEL', label: 'Hotel Accommodation', icon: '🏨', defaultUnit: 'Nights', defaultCommercialModel: 'SELLING_PRICE' },
+    { id: 'TRANSPORT', label: 'Car / Transport', icon: '🚗', defaultUnit: 'Days', defaultCommercialModel: 'FIXED_VENDOR_RATE' },
+    { id: 'DRIVER', label: 'Dedicated Driver', icon: '🚖', defaultUnit: 'Days', defaultCommercialModel: 'FIXED_VENDOR_RATE' },
+    { id: 'PANDIT', label: 'Pandit / Ritual Puja', icon: '🪔', defaultUnit: 'Session', defaultCommercialModel: 'CUSTOMER_DIRECT' },
+    { id: 'VIP_DARSHAN', label: 'VIP Darshan Pass', icon: '🛕', defaultUnit: 'Passes', defaultCommercialModel: 'PASS_THROUGH' },
+    { id: 'BOAT_RIDE', label: 'Ganga Boat Ride', icon: '⛵', defaultUnit: 'Ride', defaultCommercialModel: 'SELLING_PRICE' },
+    { id: 'TOUR_GUIDE', label: 'Local Tour Guide', icon: '🚩', defaultUnit: 'Days', defaultCommercialModel: 'SELLING_PRICE' },
+    { id: 'SHOPPING', label: 'Shopping Partner', icon: '🛍️', defaultUnit: 'Session', defaultCommercialModel: 'COMMISSION' },
+    { id: 'AIRPORT_PICKUP', label: 'Airport Transfer', icon: '✈️', defaultUnit: 'Trip', defaultCommercialModel: 'FIXED_VENDOR_RATE' },
+    { id: 'RAILWAY_PICKUP', label: 'Station Transfer', icon: '🚆', defaultUnit: 'Trip', defaultCommercialModel: 'FIXED_VENDOR_RATE' },
+    { id: 'EXTRA_DAY', label: 'Extra Extension Day', icon: '📅', defaultUnit: 'Days', defaultCommercialModel: 'SELLING_PRICE' },
+    { id: 'CUSTOM_SERVICE', label: 'Custom Service', icon: '✨', defaultUnit: 'Item', defaultCommercialModel: 'SELLING_PRICE' }
 ];
 
 export const LEAD_SOURCES = {

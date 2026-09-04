@@ -89,7 +89,7 @@ async function generateDocument({ documentType, bookingId, quoteId, customerId, 
     payload.documentId = docId;
 
     // 3. Role-Based Snapshot Sanitization
-    const sanitizedSnapshot = sanitizeSnapshotByRole(payload, user.role);
+    const sanitizedSnapshot = sanitizeSnapshotByRole(payload, user.role, documentType);
 
     // 4. Generate PDF via Active Provider
     const provider = getDocumentProvider();

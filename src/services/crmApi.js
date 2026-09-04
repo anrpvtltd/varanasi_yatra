@@ -1,5 +1,54 @@
 import { BASE_URL } from '../constants/crm';
 
+let currentAccessToken = '';
+let currentRefreshToken = '';
+
+try {
+    currentAccessToken = localStorage.getItem('admin_token') || '';
+    currentRefreshToken = localStorage.getItem('admin_refresh_token') || '';
+} catch {
+    // SSR / Private browsing fallback
+}
+
+export const tokenStorage = {
+    getAccessToken: () => currentAccessToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('admin_token') || '' : ''),
+    getRefreshToken: () => currentRefreshToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('admin_refresh_token') || '' : ''),
+    getUser: () => {
+        try {
+            const raw = localStorage.getItem('admin_user');
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    },
+    setSession: (token, refreshToken, user) => {
+        currentAccessToken = token || '';
+        if (refreshToken) currentRefreshToken = refreshToken;
+        try {
+            if (token) localStorage.setItem('admin_token', token);
+            if (refreshToken) localStorage.setItem('admin_refresh_token', refreshToken);
+            if (user) localStorage.setItem('admin_user', JSON.stringify(user));
+        } catch {}
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('crm-auth-changed', { detail: { token, refreshToken, user } }));
+        }
+    },
+    clearSession: () => {
+        currentAccessToken = '';
+        currentRefreshToken = '';
+        try {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_refresh_token');
+            localStorage.removeItem('admin_user');
+        } catch {}
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('crm-auth-logout'));
+        }
+    }
+};
+
+let refreshPromise = null;
+
 const handleResponse = async (response) => {
     const resData = await response.json();
     if (!response.ok) {
@@ -15,12 +64,60 @@ export const crmApi = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, loginType: loginMode })
         });
-        return handleResponse(response);
+        const resData = await handleResponse(response);
+        if (resData.success && resData.token) {
+            tokenStorage.setSession(resData.token, resData.refreshToken, resData.user);
+        }
+        return resData;
+    },
+
+    async refreshToken(refreshToken = null) {
+        const tokenToUse = refreshToken || tokenStorage.getRefreshToken();
+        if (!tokenToUse) {
+            throw new Error('No refresh token available');
+        }
+
+        if (!refreshPromise) {
+            refreshPromise = (async () => {
+                const response = await fetch(`${BASE_URL}/auth/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken: tokenToUse })
+                });
+                const resData = await handleResponse(response);
+                if (resData.success && resData.token) {
+                    tokenStorage.setSession(resData.token, resData.refreshToken || tokenToUse, resData.user);
+                }
+                return resData;
+            })().finally(() => {
+                refreshPromise = null;
+            });
+        }
+
+        return refreshPromise;
+    },
+
+    async logout(refreshToken = null) {
+        const tokenToUse = refreshToken || tokenStorage.getRefreshToken();
+        try {
+            if (tokenToUse) {
+                await fetch(`${BASE_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken: tokenToUse })
+                });
+            }
+        } catch (e) {
+            console.warn('Backend logout notification note:', e.message);
+        } finally {
+            tokenStorage.clearSession();
+        }
     },
 
     async verifySession(token) {
+        const authToken = token || tokenStorage.getAccessToken();
         const response = await fetch(`${BASE_URL}/admin/verify-token`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${authToken}` }
         });
         return handleResponse(response);
     },
@@ -69,6 +166,18 @@ export const crmApi = {
     async createQuote(token, quoteData) {
         const response = await fetch(`${BASE_URL}/admin/quote/create`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(quoteData)
+        });
+        return handleResponse(response);
+    },
+
+    async updateQuote(token, id, quoteData) {
+        const response = await fetch(`${BASE_URL}/admin/quote/update/${id}`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`

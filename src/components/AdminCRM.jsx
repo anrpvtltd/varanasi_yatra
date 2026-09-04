@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useCRMLeads } from '../hooks/useCRMLeads';
 import CEOCommandCenter from './crm/dashboard/CEOCommandCenter';
@@ -33,6 +33,7 @@ export default function AdminCRM() {
 
 
     const {
+        isCheckingSession,
         isAuthenticated,
         token,
         user,
@@ -64,6 +65,40 @@ export default function AdminCRM() {
         handleManualSubmit
     } = useCRMLeads(token, isAuthenticated, handleLogout);
 
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    const handleTriggerRefresh = useCallback(() => {
+        setRefreshTrigger(prev => prev + 1);
+        fetchLeads();
+    }, [fetchLeads]);
+
+    const onSaveLeadChanges = async (e) => {
+        await handleSaveChanges(e);
+        handleTriggerRefresh();
+    };
+
+    const onSubmitManualLead = async (e) => {
+        await handleManualSubmit(e);
+        handleTriggerRefresh();
+    };
+
+    // 🔄 SHOW SESSION CHECK LOADING STATE (NO BLANK SCREEN & NO LOGIN FLASH)
+    if (isCheckingSession) {
+        return (
+            <div className="min-h-screen bg-stone-900 flex flex-col items-center justify-center p-4 select-none">
+                <div className="text-center space-y-4 animate-fadeIn">
+                    <span className="text-4xl block animate-bounce">🚩</span>
+                    <h3 className="text-lg font-serif font-bold text-amber-100 uppercase tracking-widest">
+                        Banaras Yatra CRM
+                    </h3>
+                    <div className="flex items-center justify-center space-x-2 text-xs text-amber-500 font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                        <span>Checking session...</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (!isAuthenticated) {
         return (
@@ -103,7 +138,7 @@ export default function AdminCRM() {
                                     onClick={() => setLoginMode('CEO')}
                                     className="w-full mt-8 bg-gradient-to-r from-orange-700 to-amber-700 hover:from-orange-600 hover:to-amber-600 text-white py-3.5 rounded-xl font-serif font-bold text-xs tracking-wider transition-all duration-300 shadow-lg cursor-pointer z-10 outline-none focus:ring-1 focus:ring-amber-500"
                                 >
-                                    PROCEED TO LOGIN
+                                    LOGIN AS CEO
                                 </button>
                             </div>
 
@@ -126,7 +161,7 @@ export default function AdminCRM() {
                                     onClick={() => setLoginMode('TEAM')}
                                     className="w-full mt-8 bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-600 hover:to-stone-750 text-stone-100 py-3.5 rounded-xl font-serif font-bold text-xs tracking-wider transition-all duration-300 shadow-lg cursor-pointer border border-stone-800 z-10 outline-none focus:ring-1 focus:ring-stone-650"
                                 >
-                                    PROCEED TO LOGIN
+                                    LOGIN AS MANAGER
                                 </button>
                             </div>
                         </div>
@@ -150,83 +185,69 @@ export default function AdminCRM() {
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-stone-950 p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border border-amber-500/20 relative overflow-hidden animate-fadeIn">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
-                        <span className="text-4xl block mb-4">🚩</span>
-                        <h2 className="text-2xl font-serif font-bold text-amber-100 uppercase tracking-widest mb-1">
-                            Banaras Yatra
-                        </h2>
+                    <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl animate-fadeIn">
+                        <div className="space-y-2">
+                            <span className="text-4xl block">
+                                {loginMode === 'CEO' ? '👑' : '👥'}
+                            </span>
+                            <h2 className="text-xl font-serif font-extrabold text-amber-100 tracking-wider">
+                                {loginMode === 'CEO' ? 'CEO Executive Authentication' : 'Manager Console Access'}
+                            </h2>
+                            <p className="text-xs text-stone-400">
+                                Enter your credentials to access the console
+                            </p>
+                        </div>
 
-                        {loginMode === 'CEO' ? (
-                            <div className="mb-8">
-                                <h3 className="text-amber-500 font-serif font-bold tracking-widest text-sm uppercase">
-                                    👑 EXECUTIVE ACCESS
-                                </h3>
-                                <p className="text-stone-400 text-[10px] uppercase font-bold tracking-widest mt-1">
-                                    CEO / OWNER LOGIN
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="mb-8">
-                                <h3 className="text-stone-300 font-serif font-bold tracking-widest text-sm uppercase">
-                                    👥 OPERATIONS ACCESS
-                                </h3>
-                                <p className="text-stone-400 text-[10px] uppercase font-bold tracking-widest mt-1">
-                                    MANAGER / TEAM LOGIN
-                                </p>
-                            </div>
-                        )}
-
-                        <form onSubmit={handleLoginSubmit} className="space-y-4">
-                            <div className="space-y-1.5 text-left">
-                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest block ml-1">
-                                    Email Address
+                        <form onSubmit={handleLoginSubmit} className="space-y-4 text-left pt-2">
+                            <div>
+                                <label className="text-[11px] font-extrabold text-stone-400 uppercase tracking-wider block mb-1.5">
+                                    Official Email Address
                                 </label>
                                 <input
                                     type="email"
-                                    placeholder="Enter Registered Email"
+                                    required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    className="w-full px-4 py-3.5 border border-stone-800 rounded-xl text-stone-100 bg-stone-900/60 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/30 transition-all text-xs placeholder-stone-600 text-left"
+                                    placeholder={loginMode === 'CEO' ? 'ceo@banarasyatra.com' : 'manager@banarasyatra.com'}
+                                    className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-stone-200 outline-none transition placeholder:text-stone-600 font-mono"
                                 />
                             </div>
 
-                            <div className="space-y-1.5 text-left">
-                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest block ml-1">
+                            <div>
+                                <label className="text-[11px] font-extrabold text-stone-400 uppercase tracking-wider block mb-1.5">
                                     Password
                                 </label>
                                 <input
                                     type="password"
-                                    placeholder="Enter Access Password"
+                                    required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className="w-full px-4 py-3.5 border border-stone-800 rounded-xl text-stone-100 bg-stone-900/60 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/30 transition-all text-xs placeholder-stone-600 text-left"
+                                    placeholder="••••••••"
+                                    className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-stone-200 outline-none transition placeholder:text-stone-600 font-mono"
                                 />
                             </div>
 
-                            <div className="pt-2">
-                                <button
-                                    type="submit"
-                                    disabled={isAuthenticating}
-                                    className={`w-full text-white py-3.5 rounded-xl font-serif font-bold text-xs tracking-wider transition-all duration-300 shadow-lg cursor-pointer ${
-                                        loginMode === 'CEO'
-                                            ? 'bg-gradient-to-r from-orange-700 to-amber-700 hover:from-orange-600 hover:to-amber-600'
-                                            : 'bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-600 hover:to-stone-750 border border-stone-800'
-                                    }`}
-                                >
-                                    {isAuthenticating ? 'VERIFYING...' : loginMode === 'CEO' ? '[ SECURE LOGIN ]' : '[ LOGIN TO OPERATIONS ]'}
-                                </button>
-                            </div>
+                            <button
+                                type="submit"
+                                disabled={isAuthenticating}
+                                className={`w-full py-3.5 rounded-xl font-serif font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-md ${
+                                    isAuthenticating
+                                        ? 'bg-stone-700 text-stone-400 cursor-not-allowed'
+                                        : loginMode === 'CEO'
+                                            ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 cursor-pointer shadow-amber-900/20'
+                                            : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 cursor-pointer shadow-amber-900/20'
+                                }`}
+                            >
+                                {isAuthenticating ? 'Verifying Credentials...' : 'Authenticate & Enter Console'}
+                            </button>
 
                             <div className="pt-4">
                                 <button
                                     type="button"
                                     onClick={() => { setLoginMode(null); setEmail(''); setPassword(''); }}
-                                    className="text-stone-400 hover:text-orange-400 text-xs font-bold uppercase tracking-wider transition cursor-pointer select-none focus:outline-none focus:underline"
+                                    className="text-stone-500 hover:text-stone-300 text-[10px] font-bold uppercase tracking-widest transition cursor-pointer select-none"
                                 >
-                                    ← Back to Access Selection
+                                    ← Change Access Level
                                 </button>
                             </div>
                         </form>
@@ -280,24 +301,15 @@ export default function AdminCRM() {
                     </button>
                 </div>
                 
-                <div className="flex items-center flex-wrap gap-2.5">
-                    <button
-                        type="button"
-                        onClick={() => setIsManualOpen(true)}
-                        className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer border border-amber-400/30"
-                    >
-                        <span>➕</span>
-                        <span>Add Lead Manually</span>
-                    </button>
-
-                    <div className="text-xs text-amber-200 font-bold px-3 py-1.5 bg-stone-800/90 rounded-xl border border-stone-700">
-                        Logged in as: <span className="text-amber-400">{user?.role || 'Team Member'}</span> ({user?.name || 'User'})
+                <div className="flex items-center space-x-3">
+                    <div className="text-right hidden sm:block">
+                        <span className="text-xs font-bold text-amber-400 block">{user?.name}</span>
+                        <span className="text-[10px] text-stone-400 uppercase tracking-widest">{user?.role} Session Active</span>
                     </div>
-
                     <button
                         type="button"
                         onClick={handleLogout}
-                        className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 font-bold text-xs rounded-xl transition flex items-center space-x-1 cursor-pointer shadow-sm"
+                        className="px-3.5 py-1.5 bg-rose-900/40 hover:bg-rose-900/60 border border-rose-700/50 text-rose-300 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5"
                     >
                         <span>🔒</span>
                         <span>Log Out</span>
@@ -311,6 +323,8 @@ export default function AdminCRM() {
                     <CEOCommandCenter
                         token={token}
                         user={user}
+                        refreshTrigger={refreshTrigger}
+                        onRefresh={handleTriggerRefresh}
                         onOpenBooking={handleOpenBooking}
                         onOpenLead={(lead) => { setSelectedLead(lead); setProfileTab('overview'); }}
                         onOpenQuote={(lead) => handleOpenQuoteBuilder(lead)}
@@ -321,6 +335,8 @@ export default function AdminCRM() {
                     <ManagerOperationsCenter
                         token={token}
                         user={user}
+                        refreshTrigger={refreshTrigger}
+                        onRefresh={handleTriggerRefresh}
                         onOpenBooking={handleOpenBooking}
                         onOpenLead={(lead) => { setSelectedLead(lead); setProfileTab('overview'); }}
                         onOpenQuote={(lead) => handleOpenQuoteBuilder(lead)}
@@ -342,7 +358,7 @@ export default function AdminCRM() {
                 profileTab={profileTab}
                 setProfileTab={setProfileTab}
                 handleInputChange={handleInputChange}
-                handleSaveChanges={handleSaveChanges}
+                handleSaveChanges={onSaveLeadChanges}
                 isSaving={isSaving}
                 user={user}
                 onOpenQuoteBuilder={handleOpenQuoteBuilder}
@@ -353,7 +369,7 @@ export default function AdminCRM() {
                 setIsManualOpen={setIsManualOpen}
                 manualLead={manualLead}
                 handleManualInputChange={handleManualInputChange}
-                handleManualSubmit={handleManualSubmit}
+                handleManualSubmit={onSubmitManualLead}
                 isSavingManual={isSavingManual}
                 user={user}
             />
@@ -364,7 +380,7 @@ export default function AdminCRM() {
                 lead={quoteTargetLead || selectedLead}
                 token={token}
                 user={user}
-                onQuoteGenerated={() => fetchLeads()}
+                onQuoteGenerated={handleTriggerRefresh}
                 onOpenBooking={handleOpenBooking}
             />
 
@@ -376,7 +392,7 @@ export default function AdminCRM() {
                 user={user}
                 onBookingUpdated={(updated) => {
                     setSelectedBooking(updated);
-                    fetchLeads();
+                    handleTriggerRefresh();
                 }}
             />
 

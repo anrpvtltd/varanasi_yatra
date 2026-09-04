@@ -10,6 +10,8 @@ import PerformanceOverview from './PerformanceOverview';
 export default function CEOCommandCenter({
     token,
     user,
+    refreshTrigger,
+    onRefresh,
     onAddLead,
     onLogout
 }) {
@@ -48,7 +50,7 @@ export default function CEOCommandCenter({
 
     useEffect(() => {
         loadData();
-    }, [loadData]);
+    }, [loadData, refreshTrigger]);
 
     if (accessDenied || user?.role !== 'CEO') {
         return (
@@ -91,7 +93,10 @@ export default function CEOCommandCenter({
 
                     <button
                         type="button"
-                        onClick={loadData}
+                        onClick={() => {
+                            loadData();
+                            if (typeof onRefresh === 'function') onRefresh();
+                        }}
                         className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-extrabold text-xs rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md border border-stone-700"
                     >
                         🔄 Refresh Intelligence

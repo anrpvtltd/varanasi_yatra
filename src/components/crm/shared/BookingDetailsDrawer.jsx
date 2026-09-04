@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { crmApi } from '../../../services/crmApi';
 import { computeBookingReadiness } from '../../../utils/bookingReadiness';
+import { formatSafeDate } from '../../../utils/dateUtils';
 import PaymentManagementPanel from './PaymentManagementPanel';
 
 export default function BookingDetailsDrawer({
@@ -9,10 +10,19 @@ export default function BookingDetailsDrawer({
     booking,
     token,
     user,
-    onBookingUpdated
+    onBookingUpdated,
+    initialTab = 'PREPARATION'
 }) {
-    const [activeDrawerTab, setActiveDrawerTab] = useState('PREPARATION');
+    const [activeDrawerTab, setActiveDrawerTab] = useState(booking?.initialTab || initialTab);
     const [isUpdating, setIsUpdating] = useState(false);
+
+    useEffect(() => {
+        if (booking?.initialTab) {
+            setActiveDrawerTab(booking.initialTab);
+        } else if (initialTab) {
+            setActiveDrawerTab(initialTab);
+        }
+    }, [booking, initialTab]);
 
     if (!isOpen || !booking) return null;
 
@@ -96,7 +106,7 @@ export default function BookingDetailsDrawer({
                             <span className="text-xl">🚖</span>
                             <h2 className="text-lg font-serif font-extrabold tracking-wide">BOOKING #{booking.bookingNumber}</h2>
                         </div>
-                        <p className="text-xs text-stone-400 mt-0.5">Created: {new Date(booking.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs text-stone-400 mt-0.5">Created: {formatSafeDate(booking.createdAt)}</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -359,15 +369,31 @@ export default function BookingDetailsDrawer({
                                 key={d.type}
                                 onClick={async () => {
                                     try {
+                                        const custSum = booking.customerPaymentSummary || {};
+                                        const pkgPrice = custSum.packagePrice || booking.packageDetails?.finalCustomerPrice || booking.totalAmount || 0;
+                                        const totPaid = custSum.totalPaid || booking.advanceAmount || booking.paidAmount || 0;
+                                        const remDue = custSum.customerDue !== undefined ? custSum.customerDue : Math.max(0, pkgPrice - totPaid);
+                                        const custName = booking.customerDetails?.name || booking.name || 'Valued Guest';
+
                                         const res = await crmApi.generateDocument(token, {
                                             documentType: d.type,
                                             bookingId: booking.bookingNumber || booking._id,
                                             customData: {
                                                 bookingId: booking.bookingNumber || booking._id,
-                                                customerName: booking.customerName || booking.name,
-                                                totalAmount: booking.totalAmount || booking.packagePrice || 40000,
-                                                paidAmount: booking.advanceAmount || booking.paidAmount || 15000,
-                                                remainingAmount: booking.remainingAmount || 25000
+                                                customerName: custName,
+                                                totalAmount: pkgPrice,
+                                                paidAmount: totPaid,
+                                                remainingAmount: remDue,
+                                                payment: {
+                                                    bookingId: booking.bookingNumber || booking._id,
+                                                    customerName: custName,
+                                                    totalAmount: pkgPrice,
+                                                    paidAmount: totPaid,
+                                                    totalPaid: totPaid,
+                                                    remainingAmount: remDue,
+                                                    date: new Date().toISOString().split('T')[0],
+                                                    method: 'Online / UPI'
+                                                }
                                             }
                                         });
                                         if (res.success) {

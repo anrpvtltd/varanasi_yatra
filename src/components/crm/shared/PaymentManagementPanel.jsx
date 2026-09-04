@@ -40,6 +40,12 @@ export default function PaymentManagementPanel({
     const [showAddExpModal, setShowAddExpModal] = useState(false);
     const [isSubmittingExp, setIsSubmittingExp] = useState(false);
 
+    const custSum = financialSummary?.customerPaymentSummary || booking?.customerPaymentSummary || {};
+    const vendSum = financialSummary?.vendorPaymentSummary || booking?.vendorPaymentSummary || {};
+    const profitSum = financialSummary?.profitSummary || {};
+    const cashPos = financialSummary?.cashPosition || {};
+    const isCEO = user?.role === 'CEO';
+
     const loadData = useCallback(async () => {
         if (!booking || !token) return;
         setLoading(true);
@@ -64,20 +70,38 @@ export default function PaymentManagementPanel({
 
     const handleRecordCustomerPayment = async (e) => {
         e.preventDefault();
-        if (!custAmount || Number(custAmount) <= 0) {
-            alert('Please enter a valid positive amount.');
+        const numAmount = Number(custAmount);
+        if (!custAmount || isNaN(numAmount) || numAmount <= 0) {
+            alert('❌ Please enter a valid positive payment amount.');
+            return;
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (custDate && custDate > todayStr) {
+            alert('❌ Payment date cannot be in the future.');
+            return;
+        }
+
+        if (['UPI', 'BANK_TRANSFER', 'CARD'].includes(custMethod) && !custRef.trim()) {
+            alert('❌ Reference / UTR Number is required for UPI, Bank Transfer, and Card payments.');
+            return;
+        }
+
+        const targetBookingId = booking._id || booking.bookingNumber;
+        if (!targetBookingId) {
+            alert('❌ Booking reference missing. Please reopen the booking.');
             return;
         }
 
         setIsSubmittingCust(true);
         try {
             const res = await crmApi.recordCustomerPayment(token, {
-                bookingId: booking._id,
-                amount: Number(custAmount),
+                bookingId: targetBookingId,
+                amount: numAmount,
                 paymentMethod: custMethod,
-                paymentDate: custDate,
-                referenceNumber: custRef,
-                notes: custNotes
+                paymentDate: custDate || todayStr,
+                referenceNumber: custRef.trim(),
+                notes: custNotes.trim()
             });
 
             if (res.success) {
@@ -85,13 +109,59 @@ export default function PaymentManagementPanel({
                 setCustRef('');
                 setCustNotes('');
                 setShowAddCustModal(false);
-                loadData();
-                if (onBookingUpdated) onBookingUpdated();
+                await loadData();
+                if (onBookingUpdated) onBookingUpdated(res.booking);
+            } else {
+                alert('❌ Failed to record customer payment: ' + (res.message || 'Unknown error'));
             }
         } catch (err) {
-            alert('Failed to record customer payment: ' + err.message);
+            alert('❌ Failed to record customer payment: ' + (err.message || 'Server error'));
         } finally {
             setIsSubmittingCust(false);
+        }
+    };
+
+    const handleGenerateReceipt = async (payment) => {
+        try {
+            const packagePrice = custSum.packagePrice || booking.packageDetails?.finalCustomerPrice || 0;
+            const totalPaid = custSum.totalPaid || payment.amount || 0;
+            const remainingDue = Math.max(0, packagePrice - totalPaid);
+
+            const res = await crmApi.generateDocument(token, {
+                documentType: 'PAYMENT_RECEIPT',
+                bookingId: booking.bookingNumber || booking._id,
+                customData: {
+                    documentId: `REC-${(payment.paymentId || Date.now().toString()).slice(-8)}`,
+                    receiptNo: `REC-${(payment.paymentId || '').slice(-6) || 'VY-01'}`,
+                    payment: {
+                        paymentId: payment.paymentId || `PAY-${Date.now().toString().slice(-6)}`,
+                        date: payment.paymentDate || new Date().toISOString().split('T')[0],
+                        bookingId: booking.bookingNumber || booking._id,
+                        method: payment.paymentMethod || 'UPI',
+                        customerName: booking.customerDetails?.name || booking.name || 'Valued Guest',
+                        referenceNo: payment.referenceNumber || 'TXN-DIRECT',
+                        amount: payment.amount,
+                        paidAmount: payment.amount,
+                        totalAmount: packagePrice,
+                        totalPaid: totalPaid,
+                        remainingAmount: remainingDue
+                    },
+                    customerName: booking.customerDetails?.name || booking.name || 'Valued Guest',
+                    totalAmount: packagePrice,
+                    paidAmount: payment.amount,
+                    remainingAmount: remainingDue
+                }
+            });
+
+            if (res.success && res.document) {
+                const BASE_URL = import.meta.env.VITE_API_URL || 'https://api-gzo7qrxiuq-uc.a.run.app';
+                const directPdfUrl = `${BASE_URL}/admin/documents/${res.document.documentId}?download=true&token=${token}`;
+                window.open(directPdfUrl, '_blank');
+            } else {
+                alert('Receipt generated successfully.');
+            }
+        } catch (err) {
+            alert('Failed to generate receipt: ' + err.message);
         }
     };
 
@@ -163,13 +233,6 @@ export default function PaymentManagementPanel({
         }
     };
 
-    const custSum = financialSummary?.customerPaymentSummary || booking.customerPaymentSummary || {};
-    const vendSum = financialSummary?.vendorPaymentSummary || booking.vendorPaymentSummary || {};
-    const profitSum = financialSummary?.profitSummary || {};
-    const cashPos = financialSummary?.cashPosition || {};
-
-    const isCEO = user?.role === 'CEO';
-
     return (
         <div className="space-y-4 text-xs">
 
@@ -223,36 +286,59 @@ export default function PaymentManagementPanel({
                     {/* TAB 1: CUSTOMER PAYMENTS */}
                     {activeSubTab === 'CUSTOMER' && (
                         <div className="space-y-4">
-                            {/* KPI HEADER CARDS */}
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                                <div className="bg-stone-50 border border-stone-200 p-3 rounded-2xl">
-                                    <span className="text-[10px] font-extrabold text-stone-400 uppercase block">Package Price</span>
-                                    <span className="text-base font-extrabold text-stone-900">₹{(custSum.packagePrice || 0).toLocaleString('en-IN')}</span>
+                            {/* FINANCIAL HIERARCHY CARDS */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-stone-50 border border-stone-200 p-3.5 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold text-stone-500 uppercase tracking-wider block mb-1">Package Total</span>
+                                    <span className="text-base font-extrabold text-stone-900">₹{(custSum.packagePrice || booking.packageDetails?.finalCustomerPrice || 0).toLocaleString('en-IN')}</span>
                                 </div>
-                                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl">
-                                    <span className="text-[10px] font-extrabold text-emerald-700 uppercase block">Total Received</span>
+                                <div className="bg-emerald-50/80 border border-emerald-200 p-3.5 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider block mb-1">Paid</span>
                                     <span className="text-base font-extrabold text-emerald-900">₹{(custSum.totalPaid || 0).toLocaleString('en-IN')}</span>
                                 </div>
-                                <div className="bg-amber-50 border border-amber-200 p-3 rounded-2xl">
-                                    <span className="text-[10px] font-extrabold text-amber-700 uppercase block">Customer Due</span>
-                                    <span className="text-base font-extrabold text-amber-900">₹{(custSum.customerDue || 0).toLocaleString('en-IN')}</span>
+                                <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider block mb-1">Remaining</span>
+                                    <span className="text-base font-extrabold text-amber-950">₹{(custSum.customerDue !== undefined ? custSum.customerDue : Math.max(0, (custSum.packagePrice || 0) - (custSum.totalPaid || 0))).toLocaleString('en-IN')}</span>
                                 </div>
-                                <div className="bg-stone-900 text-white p-3 rounded-2xl flex flex-col justify-between">
-                                    <span className="text-[10px] font-extrabold text-amber-400 uppercase block">Payment Status</span>
-                                    <span className="text-sm font-extrabold tracking-wider">{custSum.paymentStatus || 'UNPAID'}</span>
+                                <div className="bg-stone-900 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-xs">
+                                    <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider block mb-1">Status</span>
+                                    <span className={`text-sm font-extrabold tracking-wider ${
+                                        custSum.paymentStatus === 'PAID' ? 'text-emerald-400' :
+                                        custSum.paymentStatus === 'PARTIAL' ? 'text-amber-400' :
+                                        custSum.paymentStatus === 'OVERPAID' ? 'text-purple-400' : 'text-stone-300'
+                                    }`}>{custSum.paymentStatus || 'UNPAID'}</span>
                                 </div>
                             </div>
 
                             {/* ACTION & PAYMENT HISTORY LIST */}
-                            <div className="flex justify-between items-center pt-2">
-                                <h4 className="font-extrabold text-stone-900 uppercase tracking-widest text-[11px]">Payment Transaction History ({customerPayments.length})</h4>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddCustModal(true)}
-                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs uppercase"
-                                >
-                                    + Record Customer Payment
-                                </button>
+                            <div className="flex flex-wrap justify-between items-center gap-2 pt-2">
+                                <h4 className="font-extrabold text-stone-900 uppercase tracking-widest text-[11px]">
+                                    Payment Transaction History ({customerPayments.length})
+                                </h4>
+                                <div className="flex items-center space-x-2">
+                                    {custSum.customerDue > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCustAmount(String(custSum.customerDue));
+                                                setShowAddCustModal(true);
+                                            }}
+                                            className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 font-bold rounded-xl text-xs uppercase tracking-wider transition cursor-pointer"
+                                        >
+                                            Collect Remaining Payment
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCustAmount('');
+                                            setShowAddCustModal(true);
+                                        }}
+                                        className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-extrabold rounded-xl text-xs uppercase tracking-wider shadow-sm transition cursor-pointer"
+                                    >
+                                        + Record Payment
+                                    </button>
+                                </div>
                             </div>
 
                             {customerPayments.length === 0 ? (
@@ -262,13 +348,24 @@ export default function PaymentManagementPanel({
                             ) : (
                                 <div className="space-y-2">
                                     {customerPayments.map((p) => (
-                                        <div key={p._id || p.paymentId} className="bg-white border border-stone-200 p-3 rounded-xl flex justify-between items-center">
+                                        <div key={p._id || p.paymentId} className="bg-white border border-stone-200 p-3 rounded-xl flex justify-between items-center gap-3">
                                             <div>
                                                 <div className="font-bold text-stone-900">₹{p.amount?.toLocaleString('en-IN')} via <span className="text-amber-700">{p.paymentMethod}</span></div>
                                                 <div className="text-[10px] text-stone-400">Date: {p.paymentDate} · Ref: {p.referenceNumber || 'N/A'}</div>
                                                 {p.notes && <div className="text-[10px] text-stone-600 mt-0.5">{p.notes}</div>}
                                             </div>
-                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full">COMPLETED</span>
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleGenerateReceipt(p)}
+                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] rounded-lg uppercase tracking-wider transition cursor-pointer flex items-center space-x-1 shadow-2xs"
+                                                    title="Generate & View Official Payment Receipt"
+                                                >
+                                                    <span>🧾</span>
+                                                    <span>Receipt</span>
+                                                </button>
+                                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full">COMPLETED</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -313,9 +410,11 @@ export default function PaymentManagementPanel({
                                                     </select>
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] font-extrabold text-stone-500 uppercase block mb-1">Date</label>
+                                                    <label className="text-[10px] font-extrabold text-stone-500 uppercase block mb-1">Date *</label>
                                                     <input
                                                         type="date"
+                                                        required
+                                                        max={new Date().toISOString().split('T')[0]}
                                                         value={custDate}
                                                         onChange={(e) => setCustDate(e.target.value)}
                                                         className="w-full bg-white border border-stone-300 font-bold rounded-xl px-2 py-2 text-xs"
@@ -324,12 +423,15 @@ export default function PaymentManagementPanel({
                                             </div>
 
                                             <div>
-                                                <label className="text-[10px] font-extrabold text-stone-500 uppercase block mb-1">Reference / UTR Number</label>
+                                                <label className="text-[10px] font-extrabold text-stone-500 uppercase block mb-1">
+                                                    Reference / UTR Number {custMethod !== 'CASH' && <span className="text-rose-600">*</span>}
+                                                </label>
                                                 <input
                                                     type="text"
+                                                    required={custMethod !== 'CASH'}
                                                     value={custRef}
                                                     onChange={(e) => setCustRef(e.target.value)}
-                                                    placeholder="e.g. UPI/123456789"
+                                                    placeholder={custMethod === 'CASH' ? 'Optional for Cash (e.g. CASH-01)' : 'e.g. UPI/123456789 or UTR-987654'}
                                                     className="w-full bg-white border border-stone-300 font-medium px-3 py-2 rounded-xl text-xs"
                                                 />
                                             </div>
@@ -346,8 +448,14 @@ export default function PaymentManagementPanel({
                                             </div>
 
                                             <div className="flex justify-end space-x-2 pt-2">
-                                                <button type="button" onClick={() => setShowAddCustModal(false)} className="px-3 py-1.5 bg-stone-200 font-bold rounded-xl uppercase text-xs">Cancel</button>
-                                                <button type="submit" disabled={isSubmittingCust} className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl uppercase text-xs">Save Payment</button>
+                                                <button type="button" onClick={() => setShowAddCustModal(false)} className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 font-bold rounded-xl uppercase text-xs cursor-pointer">Cancel</button>
+                                                <button
+                                                    type="submit"
+                                                    disabled={isSubmittingCust}
+                                                    className={`px-4 py-1.5 font-bold rounded-xl uppercase text-xs text-white transition-all shadow-md ${isSubmittingCust ? 'bg-stone-400 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 cursor-pointer'}`}
+                                                >
+                                                    {isSubmittingCust ? 'Saving Payment...' : 'Save Payment'}
+                                                </button>
                                             </div>
                                         </form>
                                     </div>

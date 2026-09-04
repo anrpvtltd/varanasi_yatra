@@ -13,37 +13,45 @@ export default function FinancialCommandStrip({ strip = {} }) {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-xs">
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
                     <span className="text-[9px] text-stone-400 font-extrabold uppercase block mb-1">Total Revenue</span>
                     <span className="text-sm font-extrabold text-white">₹{(strip.totalRevenue || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-stone-500 mt-1 block">Booked Packages</span>
                 </div>
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
                     <span className="text-[9px] text-emerald-400 font-extrabold uppercase block mb-1">Cash Collected</span>
                     <span className="text-sm font-extrabold text-emerald-400">₹{(strip.customerCashCollected || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-emerald-500/70 mt-1 block">Actual Cash Inflow</span>
                 </div>
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
                     <span className="text-[9px] text-amber-400 font-extrabold uppercase block mb-1">Customer Due</span>
                     <span className="text-sm font-extrabold text-amber-400">₹{(strip.customerOutstanding || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-amber-500/70 mt-1 block">Receivable from Clients</span>
                 </div>
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
                     <span className="text-[9px] text-rose-300 font-extrabold uppercase block mb-1">Vendor Paid</span>
                     <span className="text-sm font-extrabold text-rose-300">₹{(strip.vendorPaymentsMade || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-rose-400/70 mt-1 block">Disbursed to Vendors</span>
                 </div>
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
                     <span className="text-[9px] text-rose-400 font-extrabold uppercase block mb-1">Vendor Due</span>
                     <span className="text-sm font-extrabold text-rose-400">₹{(strip.vendorOutstanding || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-rose-400/70 mt-1 block">Vendor Payables</span>
                 </div>
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
-                    <span className="text-[9px] text-stone-400 font-extrabold uppercase block mb-1">Overhead Exp</span>
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
+                    <span className="text-[9px] text-stone-400 font-extrabold uppercase block mb-1">Business Expenses</span>
                     <span className="text-sm font-extrabold text-stone-300">₹{(strip.businessExpenses || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-stone-500 mt-1 block">Operating Overheads</span>
                 </div>
-                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700">
-                    <span className="text-[9px] text-amber-300 font-extrabold uppercase block mb-1">Net Cash Pos</span>
+                <div className="bg-stone-800/90 p-3 rounded-2xl border border-stone-700 flex flex-col justify-between">
+                    <span className="text-[9px] text-amber-300 font-extrabold uppercase block mb-1">Net Cash Position</span>
                     <span className="text-sm font-extrabold text-amber-300">₹{(strip.netCashPosition || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-amber-400/70 mt-1 block">Liquid In-Hand</span>
                 </div>
-                <div className="bg-amber-600 text-white p-3 rounded-2xl border border-amber-400 shadow-md">
-                    <span className="text-[9px] text-amber-100 font-extrabold uppercase block mb-1">Actual Profit</span>
+                <div className="bg-amber-600 text-white p-3 rounded-2xl border border-amber-400 shadow-md flex flex-col justify-between">
+                    <span className="text-[9px] text-amber-100 font-extrabold uppercase block mb-1">Realized Profit</span>
                     <span className="text-sm font-extrabold text-white">₹{(strip.actualProfit || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-[8px] text-amber-200 mt-1 block">Realized Margin</span>
                 </div>
             </div>
         </div>

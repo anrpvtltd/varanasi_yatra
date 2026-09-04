@@ -22,6 +22,8 @@ export const PIPELINE_STEPS = [
     { label: "Cancelled", statusValue: "Cancelled", color: "bg-rose-500", icon: "❌" }
 ];
 
+export const CRM_LEAD_SOURCES = ['Website', 'QR', 'Offline/Manual'];
+
 export const INITIAL_MANUAL_LEAD = {
     name: '',
     mobile: '',
@@ -30,6 +32,7 @@ export const INITIAL_MANUAL_LEAD = {
     travelers: '1',
     pickup: '',
     destination: 'Varanasi',
+    leadSource: 'Offline/Manual',
     specialRequirements: '',
     status: 'Pending',
     totalAmount: '',
@@ -43,3 +46,4 @@ export const INITIAL_MANUAL_LEAD = {
     panditDetails: '',
     remarks: ''
 };
+

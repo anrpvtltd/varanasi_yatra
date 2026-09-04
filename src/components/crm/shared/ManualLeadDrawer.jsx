@@ -85,6 +85,7 @@ export default function ManualLeadDrawer({
                                 <input
                                     type="date"
                                     name="date"
+                                    min={new Date().toISOString().split('T')[0]}
                                     value={manualLead.date}
                                     onChange={handleManualInputChange}
                                     className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none text-xs sm:text-sm cursor-pointer"
@@ -104,6 +105,20 @@ export default function ManualLeadDrawer({
                             </div>
                         </div>
 
+                        <div>
+                            <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">Lead Source *</label>
+                            <select
+                                name="leadSource"
+                                value={manualLead.leadSource || 'Offline/Manual'}
+                                onChange={handleManualInputChange}
+                                className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none text-xs sm:text-sm cursor-pointer"
+                            >
+                                <option value="Website">🌐 Website Enquiry</option>
+                                <option value="QR">📱 QR Scan (Hotel / Shop)</option>
+                                <option value="Offline/Manual">📞 Offline / Direct Call / Walk-in</option>
+                            </select>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">Pickup Location</label>
@@ -113,7 +128,7 @@ export default function ManualLeadDrawer({
                                     value={manualLead.pickup}
                                     onChange={handleManualInputChange}
                                     className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none text-xs sm:text-sm"
-                                    placeholder="Varanasi Airport / Station"
+                                    placeholder="Airport / Station"
                                 />
                             </div>
                             <div>
@@ -124,9 +139,21 @@ export default function ManualLeadDrawer({
                                     value={manualLead.destination}
                                     onChange={handleManualInputChange}
                                     className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-2.5 bg-white text-stone-900 font-bold focus:outline-none text-xs sm:text-sm"
-                                    placeholder="Varanasi / Ayodhya / Bodhgaya"
+                                    placeholder="Varanasi / Ayodhya"
                                 />
                             </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Customer Requirements (For Quote)</label>
+                            <input
+                                type="text"
+                                name="specialRequirements"
+                                value={manualLead.specialRequirements || ''}
+                                onChange={handleManualInputChange}
+                                className="w-full border border-stone-200 focus:border-amber-500 rounded-xl p-2.5 bg-white text-stone-900 font-semibold focus:outline-none text-xs sm:text-sm mb-2"
+                                placeholder="e.g. Car (7 Seater), 3-Star Hotel, VIP Darshan, Pandit"
+                            />
                         </div>
 
                         <div>
@@ -137,12 +164,12 @@ export default function ManualLeadDrawer({
                                 onChange={handleManualInputChange}
                                 className="w-full border border-stone-200 rounded-xl p-3 bg-stone-50 text-stone-900 font-bold focus:ring-1 focus:ring-amber-500/50 focus:outline-none cursor-pointer"
                             >
-                                <option value="Pending">🟡 Pending (New Enquiry)</option>
-                                <option value="In-Progress">🔵 In-Progress (Follow-up)</option>
-                                <option value="Confirmed">🟢 Confirmed (Trip Locked)</option>
+                                <option value="Pending">🟡 Lead (New Enquiry)</option>
+                                <option value="In-Progress">🔵 Follow-up (Discussion)</option>
+                                <option value="Confirmed">🟢 Booking (Confirmed)</option>
                                 <option value="Trip Started">🚖 Trip Started (Active)</option>
-                                <option value="Completed">✅ Completed (Finished)</option>
-                                <option value="Cancelled">🔴 Cancelled (Dropped)</option>
+                                <option value="Completed">✅ Completed</option>
+                                <option value="Cancelled">🔴 Cancelled</option>
                             </select>
                         </div>
 
