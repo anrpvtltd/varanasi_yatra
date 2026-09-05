@@ -856,7 +856,7 @@ app.post('/api/enquiry', enquiryLimiter, async (req, res) => {
                 subject: `🟡 New Website Inquiry Alert: ${name}`,
                 html: `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1.5px solid #f59e0b; border-radius: 16px; background-color: #fafaf9; color: #1c1917;">
     <div style="text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 15px; margin-bottom: 20px;">
-        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 BANARAS YATRA</h2>
+        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 VARANASI YATRA</h2>
         <p style="color: #78716c; margin: 5px 0 0 0; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">New Website Travel Enquiry Received</p>
     </div>
 

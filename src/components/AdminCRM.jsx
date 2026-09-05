@@ -23,6 +23,7 @@ import Customer360Workspace from './crm/customer/Customer360Workspace';
 import CustomerCommunicationWorkspace from './crm/communication/CustomerCommunicationWorkspace';
 import ManagerReportsWorkspace from './crm/reports/ManagerReportsWorkspace';
 import CEOTeamWorkspace from './crm/ceo/CEOTeamWorkspace';
+import HotelPartnerWorkspace from './crm/ceo/HotelPartnerWorkspace';
 
 export default function AdminCRM() {
     const [activeNav, setActiveNav] = useState('DASHBOARD');
@@ -187,6 +188,14 @@ export default function AdminCRM() {
             if (activeNav === 'TEAM') {
                 return (
                     <CEOTeamWorkspace
+                        token={token}
+                        user={user}
+                    />
+                );
+            }
+            if (activeNav === 'HOTEL_PARTNERS') {
+                return (
+                    <HotelPartnerWorkspace
                         token={token}
                         user={user}
                     />

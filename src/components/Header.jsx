@@ -22,10 +22,10 @@ export default function Header() {
 
                 {/* Left Side: Logo & Brand Grouping */}
                 <div className="flex items-center space-x-3">
-                    <img src={logoImg} alt="Banaras Yatra Logo" className="w-9 h-9 object-contain flex-shrink-0" />
+                    <img src={logoImg} alt="Varanasi Yatra Logo" className="w-9 h-9 object-contain flex-shrink-0" />
                     <div>
                         <h1 className="text-base font-serif font-black tracking-wider text-white uppercase leading-none">
-                            Banaras Yatra
+                            Varanasi Yatra
                         </h1>
                         <span className="text-[9px] uppercase font-bold tracking-widest text-orange-500 block mt-0.5">
                             Travel & Tours

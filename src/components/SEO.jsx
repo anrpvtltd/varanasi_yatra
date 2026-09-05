@@ -14,7 +14,7 @@ export default function SEO({ title, description, canonicalUrl, ogType = 'websit
             <meta property="og:type" content={ogType} />
             {ogImage && <meta property="og:image" content={ogImage} />}
             {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
-            <meta property="og:site_name" content="Banaras Yatra" />
+            <meta property="og:site_name" content="Varanasi Yatra" />
 
             {/* Twitter Card Tags */}
             <meta name="twitter:card" content="summary_large_image" />

@@ -194,7 +194,7 @@ export default function LeadProfileDrawer({
                         <Select
                             label="Lead Source"
                             name="leadSource"
-                            value={selectedLead.leadSource || 'Website'}
+                            value={selectedLead.leadSource || (selectedLead.source === 'HOTEL_QR' ? 'QR' : 'Website')}
                             onChange={handleInputChange}
                             options={[
                                 { value: 'Website', label: '🌐 Website Direct' },
@@ -202,6 +202,22 @@ export default function LeadProfileDrawer({
                                 { value: 'Offline/Manual', label: '📞 Offline / Direct Call' }
                             ]}
                         />
+
+                        {/* Attribution Info Box if Hotel QR or Partner */}
+                        {(selectedLead.source === 'HOTEL_QR' || selectedLead.partnerName) && (
+                            <div className="col-span-full bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs">
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">🏨 Hotel Partner Acquisition</span>
+                                    <span className="font-bold text-stone-900 text-sm">{selectedLead.partnerName || selectedLead.partnerId}</span>
+                                    {selectedLead.qrId && <span className="text-stone-500 text-[11px] ml-2 font-mono">({selectedLead.qrId})</span>}
+                                </div>
+                                {selectedLead.landingPath && (
+                                    <span className="text-[11px] text-stone-500 font-mono mt-1 sm:mt-0">
+                                        Landing: {selectedLead.landingPath}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </Card>
 

@@ -20,7 +20,7 @@ export default function Packages() {
             price: "8,999",
             details: "Comprehensive divine exploration covering Subah-e-Banaras, world-famous Ganga Aarti, Kashi Vishwanath corridor, and Sarnath Buddhist heritage site.",
             image: varanasiPkg,
-            alt: "Varanasi spiritual tour kashi vishwanath darshan banaras yatra",
+            alt: "Varanasi spiritual tour kashi vishwanath darshan varanasi yatra",
             isBestSeller: true,
             inclusions: [
                 "🚗 Private Sanitized AC Sedan / SUV",

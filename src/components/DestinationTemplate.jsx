@@ -111,7 +111,7 @@ export default function DestinationTemplate() {
         return (
             <div className="bg-stone-50 min-h-screen text-stone-800">
                 <SEO 
-                    title={`${fallbackName} Travel Guide - Banaras Yatra`}
+                    title={`${fallbackName} Travel Guide - Varanasi Yatra`}
                     description={`Detailed local travel guide for ${fallbackName}. Custom itineraries, car rentals, and hotel coordinates coming soon.`}
                     canonicalUrl={`https://banarasyatra.com/destinations/${id}`}
                     schema={fallbackSchema}

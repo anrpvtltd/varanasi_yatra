@@ -1,8 +1,8 @@
-# Banaras Yatra Operations 🚩 (v1.0.0 Release)
+# Varanasi Yatra Operations 🚩 (v1.0.0 Release)
 
-A premium, commercial-grade travel CRM and customer portal designed for **Banaras Yatra**, a travel agency specializing in customized pilgrimages and sightseeing tours across Varanasi, Ayodhya, Bodh Gaya, Chunar, Mirzapur, and Nepal.
+A premium, commercial-grade travel CRM and customer portal designed for **Varanasi Yatra**, a travel agency specializing in customized pilgrimages and sightseeing tours across Varanasi, Ayodhya, Bodh Gaya, Chunar, Mirzapur, and Nepal.
 
-This repository hosts both the SEO-optimized customer portal and the unified **Banaras Yatra Operations** SaaS-style CRM.
+This repository hosts both the SEO-optimized customer portal and the unified **Varanasi Yatra Operations** SaaS-style CRM.
 
 ---
 

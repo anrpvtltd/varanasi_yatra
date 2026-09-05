@@ -45,10 +45,10 @@ export default function Footer() {
                 {/* Column 1: Brand Pitch Statement + Social Icons + Blog Button */}
                 <div className="space-y-5 select-none">
                     <div className="flex items-center space-x-3">
-                        <img src={logoImg} alt="Banaras Yatra Logo" className="w-10 h-10 object-contain flex-shrink-0" />
+                        <img src={logoImg} alt="Varanasi Yatra Logo" className="w-10 h-10 object-contain flex-shrink-0" />
                         <div>
                             <h3 className="text-white font-serif font-bold text-lg leading-tight uppercase tracking-wider">
-                                Banaras Yatra
+                                Varanasi Yatra
                             </h3>
                             <p className="text-[10px] uppercase font-bold text-orange-500 tracking-widest">
                                 Travel & Tours Operator
@@ -216,7 +216,7 @@ export default function Footer() {
 
             {/* Bottom Row containing legal pages links for Indian Travel Startup */}
             <div className="max-w-7xl mx-auto pt-6 border-t border-stone-900 text-center flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-stone-600 font-medium select-none">
-                <p>© 2026 Banaras Yatra Travel & Tours. All Rights Reserved.</p>
+                <p>© 2026 Varanasi Yatra Travel & Tours. All Rights Reserved.</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                     <a href="/operations" className="text-stone-500 hover:text-orange-400 font-bold transition-colors">Staff Portal</a>
                     <span>•</span>

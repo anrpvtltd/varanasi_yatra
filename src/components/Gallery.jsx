@@ -12,7 +12,7 @@ export default function Gallery() {
         {
             url: assiImg,
             caption: "Subah-E-Banaras — Sacred Morning Rituals at Assi Ghat",
-            alt: "Varanasi morning rituals assi ghat banaras yatra"
+            alt: "Varanasi morning rituals assi ghat varanasi yatra"
         },
         {
             url: aartiImg,

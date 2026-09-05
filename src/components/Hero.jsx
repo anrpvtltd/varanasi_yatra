@@ -51,7 +51,7 @@ export default function Hero() {
                 <div className="lg:col-span-7 space-y-5 text-left">
                     <div className="inline-flex items-center space-x-2.5 bg-stone-900/80 backdrop-blur-md px-3.5 py-2 rounded-full border border-stone-800 shadow-sm">
                         <img src={logoImg} alt="Logo" className="w-8 h-8 object-contain flex-shrink-0" />
-                        <span className="text-[10px] font-black tracking-widest text-orange-400 uppercase">Banaras Yatra Premium Operator</span>
+                        <span className="text-[10px] font-black tracking-widest text-orange-400 uppercase">Varanasi Yatra Premium Operator</span>
                     </div>
 
                     <h1 className="text-3xl sm:text-5xl lg:text-5xl font-serif font-bold text-white leading-[1.18] tracking-wide">

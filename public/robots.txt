@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://banarasyatra.com/sitemap.xml
+# Protect internal CRM and API endpoints
+Disallow: /operations
+Disallow: /admin
+Disallow: /crm
+Disallow: /api/
+
+Sitemap: https://varanasiyatra.com/sitemap.xml

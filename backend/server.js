@@ -142,8 +142,36 @@ const baseSchemaFields = {
         updatedBy: String,
         updatedTime: String,
         remarks: String
-    }]
+    }],
+    source: { type: String, default: 'WEBSITE' },
+    partnerId: { type: String, default: null },
+    partnerName: { type: String, default: '' },
+    qrId: { type: String, default: null },
+    utmSource: { type: String, default: '' },
+    utmMedium: { type: String, default: '' },
+    utmCampaign: { type: String, default: '' },
+    utmTerm: { type: String, default: '' },
+    utmContent: { type: String, default: '' },
+    landingPath: { type: String, default: '' },
+    capturedAt: { type: Date, default: Date.now }
 };
+
+const HotelPartnerSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    contactName: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    email: { type: String, default: '' },
+    address: { type: String, default: '' },
+    active: { type: Boolean, default: true },
+    partnerCode: { type: String, required: true, unique: true, index: true },
+    notes: { type: String, default: '' },
+    qrId: { type: String, default: null },
+    scansCount: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+const HotelPartner = mongoose.model('HotelPartner', HotelPartnerSchema, 'hotel_partners');
 
 const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -228,6 +256,23 @@ async function initializeUsers() {
             console.log("🚩 Database Seed: Manager User initialized successfully!");
         } else {
             console.log("🚩 Database Seed: Manager User already exists.");
+        }
+
+        // Seed Default Demo Hotel Partner
+        const existingPartner = await HotelPartner.findOne({ partnerCode: 'hotel-taj-ganges' });
+        if (!existingPartner) {
+            await HotelPartner.create({
+                name: 'Taj Ganges Varanasi',
+                contactName: 'Concierge Desk',
+                phone: '+91 542 6660001',
+                email: 'concierge.tajganges@tajhotels.com',
+                address: 'Nadesar Palace Grounds, Varanasi',
+                partnerCode: 'hotel-taj-ganges',
+                active: true,
+                notes: 'Premier 5-star hotel partner concierge desk',
+                scansCount: 0
+            });
+            console.log("🚩 Database Seed: Hotel Partner Taj Ganges initialized successfully!");
         }
     } catch (err) {
         console.error("❌ Seeding initial users failed:", err);
@@ -610,11 +655,11 @@ const financialLimiter = rateLimit({
 
 const enquiryLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: process.env.NODE_ENV === 'production' ? 10 : 500,
     message: { success: false, message: "Too many enquiry submissions from this IP. Please try again later." },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => process.env.NODE_ENV === 'test',
+    skip: (req) => process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && (req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1')),
 });
 
 function authenticateToken(req, res, next) {
@@ -1131,7 +1176,7 @@ app.post('/api/enquiry', enquiryLimiter, async (req, res) => {
                 subject: `🟡 New Website Inquiry Alert: ${name}`,
                 html: `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1.5px solid #f59e0b; border-radius: 16px; background-color: #fafaf9; color: #1c1917;">
     <div style="text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 15px; margin-bottom: 20px;">
-        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 BANARAS YATRA</h2>
+        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 VARANASI YATRA</h2>
         <p style="color: #78716c; margin: 5px 0 0 0; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">New Website Travel Enquiry Received</p>
     </div>
 
@@ -1188,6 +1233,303 @@ app.post('/api/enquiry', enquiryLimiter, async (req, res) => {
     } catch (error) {
         console.error("❌ Website Enquiry Route Failure:", error);
         return res.status(500).json({ success: false, message: "Server Error." });
+    }
+});
+
+// =========================================================================
+// 🚀 PHASE 3: PUBLIC LEAD ACQUISITION & HOTEL QR ENGINE
+// =========================================================================
+
+// 📥 1b. Public Semantic Lead API (POST /public/leads)
+app.post('/public/leads', enquiryLimiter, async (req, res) => {
+    try {
+        const body = req.body || {};
+
+        // 1. Anti-spam Honeypot Protection
+        if (body.website_hp && String(body.website_hp).trim().length > 0) {
+            return res.status(400).json({ success: false, message: "Spam submission rejected." });
+        }
+
+        // 2. Input Validation
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const rawPhone = typeof body.phone === 'string' ? body.phone : (typeof body.mobile === 'string' ? body.mobile : (body.phone ? String(body.phone) : ''));
+        const cleanPhone = String(rawPhone).replace(/\D/g, '');
+
+        if (!name || name.length < 2) {
+            return res.status(400).json({ success: false, message: "Full name is required (minimum 2 characters)." });
+        }
+
+        if (!cleanPhone || cleanPhone.length < 10) {
+            return res.status(400).json({ success: false, message: "Valid 10-digit mobile number is required." });
+        }
+
+        // Validate optional email
+        let cleanEmail = 'offline-client@banarasyatra.com';
+        if (body.email && typeof body.email === 'string') {
+            const trimmedEmail = body.email.trim().toLowerCase();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (emailRegex.test(trimmedEmail)) {
+                cleanEmail = trimmedEmail;
+            } else if (trimmedEmail.length > 0) {
+                return res.status(400).json({ success: false, message: "Invalid email format." });
+            }
+        }
+
+        // 3. Fast Duplicate Submission Protection (60-second window)
+        const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);
+        const existingRecentLead = await Enquiry.findOne({
+            mobile: cleanPhone,
+            createdAt: { $gte: sixtySecondsAgo }
+        });
+
+        if (existingRecentLead) {
+            return res.status(200).json({
+                success: true,
+                message: "Your trip enquiry has already been received.",
+                leadId: existingRecentLead._id,
+                duplicate: true
+            });
+        }
+
+        // 4. Partner Attribution Resolution
+        let partnerId = body.partnerId ? String(body.partnerId).toLowerCase().trim() : null;
+        let partnerName = '';
+        let source = body.source ? String(body.source).toUpperCase().trim() : (partnerId ? 'HOTEL_QR' : 'WEBSITE');
+
+        if (partnerId) {
+            const partner = await HotelPartner.findOne({ partnerCode: partnerId });
+            if (partner) {
+                partnerName = partner.name;
+                partnerId = partner.partnerCode;
+                source = 'HOTEL_QR';
+            }
+        }
+
+        // Normalize source
+        const validSources = ['WEBSITE', 'HOTEL_QR', 'WHATSAPP', 'OFFLINE', 'MANUAL', 'PARTNER'];
+        if (!validSources.includes(source)) {
+            source = 'WEBSITE';
+        }
+
+        // 5. Normalize Requirements
+        let reqObj = {};
+        let reqList = [];
+        if (body.requirements) {
+            if (Array.isArray(body.requirements)) {
+                reqList = body.requirements;
+                body.requirements.forEach(r => { reqObj[r] = true; });
+            } else if (typeof body.requirements === 'object') {
+                reqObj = body.requirements;
+                Object.entries(body.requirements).forEach(([k, v]) => {
+                    if (v) reqList.push(k);
+                });
+            } else if (typeof body.requirements === 'string') {
+                reqList = body.requirements.split(',').map(s => s.trim()).filter(Boolean);
+                reqList.forEach(r => { reqObj[r] = true; });
+            }
+        }
+
+        const specialRequirementsStr = reqList.length > 0 
+            ? reqList.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(' + ')
+            : (typeof body.specialRequirements === 'string' ? body.specialRequirements.trim() : '');
+
+        // 6. Safe CRM-Compatible Lead Creation (Strictly strip all internal privileged fields)
+        const newLead = new Enquiry({
+            name,
+            mobile: cleanPhone,
+            email: cleanEmail,
+            pickup: typeof body.comingFrom === 'string' && body.comingFrom.trim() ? body.comingFrom.trim() : (body.pickup || 'Varanasi'),
+            destination: 'Varanasi',
+            date: typeof body.travelDate === 'string' && body.travelDate.trim() ? body.travelDate.trim() : (body.date || 'Flexible'),
+            travelers: body.guests ? String(body.guests) : (body.travelers ? String(body.travelers) : '2 Adults'),
+            tripDuration: body.duration ? String(body.duration) : '3 Days',
+            specialRequirements: specialRequirementsStr,
+            requirements: reqObj,
+            city: typeof body.comingFrom === 'string' ? body.comingFrom.trim() : '',
+            
+            // Attribution
+            source,
+            leadSource: source === 'HOTEL_QR' ? 'QR' : (source === 'WHATSAPP' ? 'Offline/Manual' : 'Website'),
+            partnerId: partnerId || null,
+            partnerName: partnerName || '',
+            qrId: body.qrId ? String(body.qrId).trim() : (partnerId || null),
+            utmSource: body.utm?.source ? String(body.utm.source).trim() : (body.utmSource || ''),
+            utmMedium: body.utm?.medium ? String(body.utm.medium).trim() : (body.utmMedium || ''),
+            utmCampaign: body.utm?.campaign ? String(body.utm.campaign).trim() : (body.utmCampaign || ''),
+            utmTerm: body.utm?.term ? String(body.utm.term).trim() : (body.utmTerm || ''),
+            utmContent: body.utm?.content ? String(body.utm.content).trim() : (body.utmContent || ''),
+            landingPath: typeof body.landingPath === 'string' ? body.landingPath.trim() : '',
+            capturedAt: new Date(),
+
+            // Initial CRM State
+            createdBy: source === 'HOTEL_QR' ? `Hotel Partner (${partnerName || partnerId})` : 'Website Public Lead',
+            stage: 'NEW',
+            status: 'Pending',
+            activityHistory: [{
+                timestamp: new Date().toISOString(),
+                action: 'PUBLIC_LEAD_CREATED',
+                actor: 'Public Portal',
+                details: `Lead created via ${source}${partnerName ? ' (' + partnerName + ')' : ''}`
+            }],
+            statusHistory: [{
+                previousStatus: 'None',
+                newStatus: 'Pending',
+                updatedBy: 'Public Form',
+                updatedTime: new Date().toISOString(),
+                remarks: `New ${source} enquiry received`
+            }]
+        });
+
+        await newLead.save();
+
+        // Safe notification if mail service is active (without internal financials)
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+            const adminMail = {
+                from: process.env.EMAIL_USER,
+                to: process.env.EMAIL_USER,
+                subject: `🟡 New ${source === 'HOTEL_QR' ? `Hotel QR Lead (${partnerName || partnerId})` : 'Website Lead'}: ${name}`,
+                html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #f59e0b; border-radius: 10px;">
+                    <h3>🚩 New Varanasi Yatra Enquiry (${source})</h3>
+                    <p><strong>Name:</strong> ${name}</p>
+                    <p><strong>Mobile:</strong> ${cleanPhone}</p>
+                    <p><strong>Partner:</strong> ${partnerName || 'None'}</p>
+                    <p><strong>Requirements:</strong> ${specialRequirementsStr || 'General'}</p>
+                </div>`
+            };
+            try {
+                await transporter.sendMail(adminMail);
+            } catch {
+                // Non-blocking mail failure
+            }
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: "Your trip enquiry has been received.",
+            leadId: newLead._id
+        });
+    } catch (error) {
+        console.error("❌ Public Lead API Error:", error);
+        return res.status(500).json({ success: false, message: "Server error processing enquiry." });
+    }
+});
+
+// 🏨 Public Hotel Partner Lookup Route (Safe metadata only)
+app.get('/public/partners/:partnerCode', async (req, res) => {
+    try {
+        const partnerCode = String(req.params.partnerCode || '').toLowerCase().trim();
+        const partner = await HotelPartner.findOne({ partnerCode });
+        if (!partner) {
+            return res.status(404).json({ success: false, message: "Hotel partner desk not found." });
+        }
+        return res.status(200).json({
+            success: true,
+            partner: {
+                name: partner.name,
+                partnerCode: partner.partnerCode,
+                active: partner.active,
+                address: partner.address
+            }
+        });
+    } catch (err) {
+        console.error("❌ Public partner lookup failed:", err);
+        return res.status(500).json({ success: false, message: "Server error." });
+    }
+});
+
+// 📱 Public Hotel Partner QR Scan Event Tracker
+app.post('/public/partners/:partnerCode/scan', async (req, res) => {
+    try {
+        const partnerCode = String(req.params.partnerCode || '').toLowerCase().trim();
+        await HotelPartner.findOneAndUpdate(
+            { partnerCode },
+            { $inc: { scansCount: 1 } }
+        );
+        return res.status(200).json({ success: true });
+    } catch {
+        return res.status(200).json({ success: false }); // Non-blocking
+    }
+});
+
+// 🏨 CEO: List Hotel Partners with Real Lead Counts
+app.get('/admin/hotel-partners', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const partners = await HotelPartner.find().sort({ createdAt: -1 }).lean();
+        const enriched = await Promise.all(partners.map(async (p) => {
+            const leadCount = await Enquiry.countDocuments({ partnerId: p.partnerCode });
+            return {
+                ...p,
+                leadsCount: leadCount
+            };
+        }));
+        return res.status(200).json({ success: true, data: enriched });
+    } catch (err) {
+        console.error("❌ Fetch hotel partners failed:", err);
+        return res.status(500).json({ success: false, message: "Failed to fetch hotel partners." });
+    }
+});
+
+// 🏨 CEO: Create Hotel Partner
+app.post('/admin/hotel-partners', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const { name, contactName, phone, email, address, notes, partnerCode: rawCode } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ success: false, message: "Hotel name is required." });
+        }
+
+        // Auto-generate partnerCode if not provided
+        let partnerCode = rawCode 
+            ? rawCode.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-')
+            : name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+
+        // Check uniqueness
+        const existing = await HotelPartner.findOne({ partnerCode });
+        if (existing) {
+            partnerCode = `${partnerCode}-${Date.now().toString(36).slice(-4)}`;
+        }
+
+        const newPartner = new HotelPartner({
+            name: name.trim(),
+            contactName: contactName ? contactName.trim() : '',
+            phone: phone ? phone.trim() : '',
+            email: email ? email.trim() : '',
+            address: address ? address.trim() : '',
+            notes: notes ? notes.trim() : '',
+            partnerCode,
+            active: true
+        });
+
+        await newPartner.save();
+        return res.status(201).json({ success: true, partner: newPartner });
+    } catch (err) {
+        console.error("❌ Create hotel partner failed:", err);
+        return res.status(500).json({ success: false, message: "Failed to create hotel partner." });
+    }
+});
+
+// 🏨 CEO: Update Hotel Partner (edit details or toggle active)
+app.patch('/admin/hotel-partners/:id', authenticateToken, requireRole(['CEO']), async (req, res) => {
+    try {
+        const { name, contactName, phone, email, address, notes, active } = req.body;
+        const partner = await HotelPartner.findById(req.params.id);
+        if (!partner) {
+            return res.status(404).json({ success: false, message: "Hotel partner not found." });
+        }
+
+        if (name !== undefined) partner.name = name.trim();
+        if (contactName !== undefined) partner.contactName = contactName.trim();
+        if (phone !== undefined) partner.phone = phone.trim();
+        if (email !== undefined) partner.email = email.trim();
+        if (address !== undefined) partner.address = address.trim();
+        if (notes !== undefined) partner.notes = notes.trim();
+        if (active !== undefined) partner.active = Boolean(active);
+        partner.updatedAt = new Date();
+
+        await partner.save();
+        return res.status(200).json({ success: true, partner });
+    } catch (err) {
+        console.error("❌ Update hotel partner failed:", err);
+        return res.status(500).json({ success: false, message: "Failed to update hotel partner." });
     }
 });
 

@@ -25,7 +25,7 @@ export default function CEOCommandCenter({
     return (
         <>
             <DashboardHeader
-                title="Banaras Yatra Executive Control Center"
+                title="Varanasi Yatra Executive Control Center"
                 subtitle="Full Executive Dashboard & Company Financial Command Panel"
                 onAddLead={onAddLead}
                 onSync={onSync}

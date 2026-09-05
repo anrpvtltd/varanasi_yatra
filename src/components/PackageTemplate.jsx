@@ -165,7 +165,7 @@ export default function PackageTemplate() {
         return (
             <div className="bg-stone-50 min-h-screen text-stone-800">
                 <SEO 
-                    title={`${fallbackName} Package - Banaras Yatra`}
+                    title={`${fallbackName} Package - Varanasi Yatra`}
                     description={`Detailed tour itinerary, travel pricing, and inclusions for ${fallbackName} coming soon.`}
                     canonicalUrl={`https://banarasyatra.com/packages/${id}`}
                     schema={fallbackSchema}
@@ -232,7 +232,7 @@ export default function PackageTemplate() {
                     },
                     "provider": {
                         "@type": "Organization",
-                        "name": "Banaras Yatra",
+                        "name": "Varanasi Yatra",
                         "url": "https://banarasyatra.com"
                     }
                 }

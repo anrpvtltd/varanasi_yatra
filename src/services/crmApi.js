@@ -675,6 +675,38 @@ export const crmApi = {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return handleResponse(response);
+    },
+
+    // 🏨 Hotel Partner & QR Management API (Phase 3)
+    async fetchHotelPartners(token) {
+        const response = await fetch(`${BASE_URL}/admin/hotel-partners`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async createHotelPartner(token, partnerData) {
+        const response = await fetch(`${BASE_URL}/admin/hotel-partners`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(partnerData)
+        });
+        return handleResponse(response);
+    },
+
+    async updateHotelPartner(token, id, partnerData) {
+        const response = await fetch(`${BASE_URL}/admin/hotel-partners/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(partnerData)
+        });
+        return handleResponse(response);
     }
 };
 

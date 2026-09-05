@@ -20,10 +20,10 @@ export default function AboutUs() {
                         
                         <div className="space-y-4 text-xs sm:text-sm text-stone-600 leading-relaxed font-medium">
                             <p>
-                                Banaras Yatra began with a simple, personal observation. Over the years, we watched family, friends, and pilgrims from all parts of India arrive in Varanasi with hearts full of devotion, only to face confusion. Finding a clean, family-friendly hotel near the Ganga ghats, coordinating a trustworthy taxi driver, and securing a reliable temple guide often felt like an overwhelming task.
+                                Varanasi Yatra began with a simple, personal observation. Over the years, we watched family, friends, and pilgrims from all parts of India arrive in Varanasi with hearts full of devotion, only to face confusion. Finding a clean, family-friendly hotel near the Ganga ghats, coordinating a trustworthy taxi driver, and securing a reliable temple guide often felt like an overwhelming task.
                             </p>
                             <p>
-                                We started **Banaras Yatra** to change that. As locals who grew up listening to the temple bells and witnessing the morning Ganga Aarti at Assi Ghat, we wanted to bridge this gap. Our startup is built to replace uncertainty with warmth, comfort, and complete transparency.
+                                We started **Varanasi Yatra** to change that. As locals who grew up listening to the temple bells and witnessing the morning Ganga Aarti at Assi Ghat, we wanted to bridge this gap. Our startup is built to replace uncertainty with warmth, comfort, and complete transparency.
                             </p>
                             <p>
                                 We do not offer factory-made tours. Instead, we coordinate custom spiritual journeys designed for families and senior citizens. By working directly with trusted local transport owners, certified guides, and handpicked hotels, we make sure that your sacred pilgrimage is conducted in peace, comfort, and safety.
@@ -51,7 +51,7 @@ export default function AboutUs() {
                         <div className="relative border border-stone-200 p-2.5 bg-white rounded-3xl shadow-xl overflow-hidden group">
                             <ImageWithSkeleton 
                                 src={mainStoryImg} 
-                                alt="Morning prayers at Assi Ghat Varanasi Banaras Yatra story" 
+                                alt="Morning prayers at Assi Ghat Varanasi Varanasi Yatra story" 
                                 containerClassName="h-80 w-full rounded-2xl"
                                 className="group-hover:scale-101 transition-transform duration-500"
                             />

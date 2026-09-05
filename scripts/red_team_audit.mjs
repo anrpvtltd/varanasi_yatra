@@ -364,6 +364,8 @@ async function runRedTeamAudit() {
     await page.setViewport({ width: 1440, height: 900 });
     await page.goto(`${BASE_URL}/admin`, { waitUntil: 'networkidle2' });
 
+    await page.waitForSelector('input[type="email"]', { timeout: 12000 });
+
     // Switch to Manager role tab if needed
     await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button'));

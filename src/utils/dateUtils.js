@@ -1,5 +1,5 @@
 /**
- * Safe date parsing and formatting utility for Banaras Yatra CRM.
+ * Safe date parsing and formatting utility for Varanasi Yatra CRM.
  * Guaranteed never to return 'Invalid Date' or throw exceptions.
  */
 

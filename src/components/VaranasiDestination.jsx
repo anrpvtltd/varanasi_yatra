@@ -88,7 +88,7 @@ export default function VaranasiDestination() {
         { q: "What should we wear while visiting temples?", a: "Wear modest Indian attire. Salwar kameez, sarees, or trousers for women, and kurtas or trousers for men." },
         { q: "Is alcohol allowed in Varanasi?", a: "Alcohol is banned within a certain radius of the temples and ghats. Only pure vegetarian food is served near sacred areas." },
         { q: "What is the cost of a private taxi for sightseeing?", a: "Private sedan taxis start around ₹2,500/day for local tours. Our packages include premium sanitized vehicles." },
-        { q: "How can we book custom tour packages with Banaras Yatra?", a: "You can submit an enquiry form directly on this page, or click the WhatsApp button to chat with our travel coordinators." }
+        { q: "How can we book custom tour packages with Varanasi Yatra?", a: "You can submit an enquiry form directly on this page, or click the WhatsApp button to chat with our travel coordinators." }
     ];
 
     // Schema structure for dynamic search indexing
@@ -562,7 +562,7 @@ export default function VaranasiDestination() {
                     <div className="lg:col-span-7 space-y-6 text-left">
                         <span className="text-[10px] font-black uppercase tracking-widest text-orange-400 bg-stone-900 px-3 py-1.5 rounded-md border border-stone-800 inline-block">Secure Booking Desk</span>
                         <h2 className="text-3xl sm:text-5xl font-serif font-bold text-white leading-tight">
-                            Book Your Sacred Journey with Banaras Yatra
+                            Book Your Sacred Journey with Varanasi Yatra
                         </h2>
                         <div className="w-16 h-1 bg-orange-500 rounded-full"></div>
                         <p className="text-xs sm:text-sm text-stone-400 leading-relaxed font-medium max-w-xl">
