@@ -214,8 +214,8 @@ export default function PartnerQRPage() {
                     subtitle="Our local team coordinates directly with your schedule. No middlemen, no commissions."
                 />
 
-                {/* Immediate WhatsApp Action */}
-                <div className="mt-8 text-center">
+                {/* Immediate WhatsApp & Call Action */}
+                <div className="mt-8 text-center space-y-2">
                     <a
                         href={`https://wa.me/918149783494?text=Namaste!%20I%20am%20a%20guest%20at%20${encodeURIComponent(formattedPartner)}%20and%20scanned%20the%20QR%20code.`}
                         target="_blank"
@@ -226,6 +226,9 @@ export default function PartnerQRPage() {
                         <span>Need Immediate Assistance? Chat on WhatsApp</span>
                         <span>💬</span>
                     </a>
+                    <div className="text-[11px] text-stone-500">
+                        Or speak with our desk: <a href="tel:+918400554029" className="text-amber-800 font-bold font-mono hover:underline">+91 84005 54029</a> · Email: <a href="mailto:info.varanasi.yatra@gmail.com" className="hover:underline">info.varanasi.yatra@gmail.com</a>
+                    </div>
                 </div>
             </div>
         </>

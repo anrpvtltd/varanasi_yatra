@@ -10,7 +10,7 @@ export default function ContactPage() {
         <>
             <SEO
                 title="Contact Varanasi Yatra | 24x7 Local Helpline & WhatsApp Desk"
-                description="Get in touch with our local Varanasi travel coordinators. Direct phone: +91-8400554029, WhatsApp: +91-8149783494, Email: info.varanasi.yatra@gmail.com."
+                description="Get in touch with our local Varanasi travel coordinators. Direct phone: +91 84005 54029, WhatsApp: +91 81497 83494, Email: info.varanasi.yatra@gmail.com, Instagram: @info.varanasi.yatra."
                 pathname="/contact"
             />
 
@@ -52,7 +52,7 @@ export default function ContactPage() {
                                         Direct Helpline
                                     </span>
                                     <span className="text-base font-serif font-black text-stone-900 group-hover:text-amber-700 transition-colors font-mono">
-                                        +91-8400554029
+                                        +91 84005 54029
                                     </span>
                                     <span className="text-[11px] text-stone-500 block mt-0.5">
                                         Voice call assistance for bookings & immediate queries
@@ -78,7 +78,7 @@ export default function ContactPage() {
                                         WhatsApp Desk
                                     </span>
                                     <span className="text-base font-serif font-black text-stone-900 group-hover:text-emerald-700 transition-colors font-mono">
-                                        +91-8149783494
+                                        +91 81497 83494
                                     </span>
                                     <span className="text-[11px] text-stone-500 block mt-0.5">
                                         Instant chat for custom itineraries & photo quotes
@@ -105,6 +105,31 @@ export default function ContactPage() {
                                     </span>
                                     <span className="text-[11px] text-stone-500 block mt-0.5">
                                         For formal proposals, group inquiries, and partnerships
+                                    </span>
+                                </div>
+                            </div>
+                        </a>
+
+                        {/* Instagram */}
+                        <a
+                            href="https://www.instagram.com/info.varanasi.yatra/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block bg-white p-6 rounded-3xl border border-stone-200 shadow-sm hover:border-pink-500/50 hover:shadow-md transition group"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center text-xl flex-shrink-0">
+                                    📸
+                                </div>
+                                <div>
+                                    <span className="text-[11px] uppercase font-bold tracking-wider text-stone-500 block">
+                                        Instagram · BANARAS YATRA Travel & Tours
+                                    </span>
+                                    <span className="text-sm font-mono font-bold text-stone-900 group-hover:text-pink-600 transition-colors">
+                                        @info.varanasi.yatra
+                                    </span>
+                                    <span className="text-[11px] text-stone-500 block mt-0.5">
+                                        Follow real-time Varanasi moments, darshan updates & stories
                                     </span>
                                 </div>
                             </div>

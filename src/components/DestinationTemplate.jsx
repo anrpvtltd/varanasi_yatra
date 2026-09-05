@@ -102,9 +102,9 @@ export default function DestinationTemplate() {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             "itemListElement": [
-                { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://banarasyatra.com/" },
-                { "@type": "ListItem", "position": 2, "name": "Destinations", "item": "https://banarasyatra.com/#destinations" },
-                { "@type": "ListItem", "position": 3, "name": fallbackName, "item": `https://banarasyatra.com/destinations/${id}` }
+                { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://varanasiyatra.com/" },
+                { "@type": "ListItem", "position": 2, "name": "Destinations", "item": "https://varanasiyatra.com/#destinations" },
+                { "@type": "ListItem", "position": 3, "name": fallbackName, "item": `https://varanasiyatra.com/destinations/${id}` }
             ]
         };
 
@@ -113,7 +113,7 @@ export default function DestinationTemplate() {
                 <SEO 
                     title={`${fallbackName} Travel Guide - Varanasi Yatra`}
                     description={`Detailed local travel guide for ${fallbackName}. Custom itineraries, car rentals, and hotel coordinates coming soon.`}
-                    canonicalUrl={`https://banarasyatra.com/destinations/${id}`}
+                    canonicalUrl={`https://varanasiyatra.com/destinations/${id}`}
                     schema={fallbackSchema}
                 />
                 
@@ -152,16 +152,16 @@ export default function DestinationTemplate() {
             {
                 "@type": "BreadcrumbList",
                 "itemListElement": [
-                    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://banarasyatra.com/" },
-                    { "@type": "ListItem", "position": 2, "name": "Destinations", "item": "https://banarasyatra.com/#destinations" },
-                    { "@type": "ListItem", "position": 3, "name": dest.name, "item": `https://banarasyatra.com/destinations/${id}` }
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://varanasiyatra.com/" },
+                    { "@type": "ListItem", "position": 2, "name": "Destinations", "item": "https://varanasiyatra.com/#destinations" },
+                    { "@type": "ListItem", "position": 3, "name": dest.name, "item": `https://varanasiyatra.com/destinations/${id}` }
                 ]
             },
             {
                 "@type": "TouristAttraction",
                 "name": dest.name,
                 "description": dest.overview,
-                "image": `https://banarasyatra.com/assets/${id}.png`
+                "image": `https://varanasiyatra.com/assets/${id}.png`
             }
         ]
     };
@@ -171,7 +171,7 @@ export default function DestinationTemplate() {
             <SEO 
                 title={dest.title}
                 description={dest.metaDesc}
-                canonicalUrl={`https://banarasyatra.com/destinations/${id}`}
+                canonicalUrl={`https://varanasiyatra.com/destinations/${id}`}
                 ogImage={dest.image}
                 schema={schemaOrg}
             />
@@ -295,7 +295,7 @@ export default function DestinationTemplate() {
                                     Customize Itinerary ➔
                                 </a>
                                 <a 
-                                    href="https://wa.me/918149783494"
+                                    href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance."
                                     target="_blank"
                                     rel="noreferrer"
                                     className="block text-center text-xs font-bold uppercase tracking-wider bg-stone-900 border border-stone-800 text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 py-3.5 rounded-xl transition duration-200"

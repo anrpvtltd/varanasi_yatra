@@ -218,7 +218,7 @@ export default function DestinationDetailPage() {
                             </a>
 
                             <div className="mt-4 pt-4 border-t border-stone-100 text-[11px] text-stone-500 text-center">
-                                Direct Helpline: <a href="tel:+918400554029" className="text-amber-700 font-bold font-mono">+91-8400554029</a>
+                                Direct Helpline: <a href="tel:+918400554029" className="text-amber-700 font-bold font-mono">+91 84005 54029</a>
                             </div>
                         </div>
                     </aside>

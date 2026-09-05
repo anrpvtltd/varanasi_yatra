@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 const BASE_URL = 'http://127.0.0.1:5174';
 const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -75,6 +76,7 @@ async function runPublicWebsiteAudit() {
     const browser = await puppeteer.launch({
         executablePath: CHROME_PATH,
         headless: true,
+        userDataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'chrome_test_public_')),
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 

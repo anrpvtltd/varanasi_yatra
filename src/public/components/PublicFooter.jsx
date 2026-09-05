@@ -157,7 +157,7 @@ export default function PublicFooter() {
                         <span className="text-amber-500 text-sm mt-0.5">📞</span>
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">Helpline (Direct)</span>
-                            <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono font-bold">+91-8400554029</span>
+                            <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono font-bold">+91 84005 54029</span>
                         </div>
                     </a>
 
@@ -171,7 +171,7 @@ export default function PublicFooter() {
                         <span className="text-emerald-500 text-sm mt-0.5">💬</span>
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">WhatsApp Assistance</span>
-                            <span className="text-stone-200 group-hover:text-emerald-400 text-xs font-mono font-bold">+91-8149783494</span>
+                            <span className="text-stone-200 group-hover:text-emerald-400 text-xs font-mono font-bold">+91 81497 83494</span>
                         </div>
                     </a>
 
@@ -183,6 +183,20 @@ export default function PublicFooter() {
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">Official Email</span>
                             <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono break-all">info.varanasi.yatra@gmail.com</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://www.instagram.com/info.varanasi.yatra/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-start gap-3 p-2.5 rounded-xl bg-stone-900/50 border border-stone-800/70 hover:border-pink-500/40 transition group"
+                        title="BANARAS YATRA Travel & Tours on Instagram"
+                    >
+                        <span className="text-pink-500 text-sm mt-0.5">📸</span>
+                        <div>
+                            <span className="text-[11px] text-stone-500 block uppercase font-bold">Instagram</span>
+                            <span className="text-stone-200 group-hover:text-pink-400 text-xs font-mono">@info.varanasi.yatra</span>
                         </div>
                     </a>
 

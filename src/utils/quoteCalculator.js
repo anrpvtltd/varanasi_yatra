@@ -249,6 +249,6 @@ ${itemsStr || '✓ Complete Customized Itinerary Services'}
 • Verified Heritage Hotels & Drivers
 • Fast-Track VIP Kashi Vishwanath Darshan
 
-Reply *YES* to lock your dates or call us at 📞 +91 9876543210.
-www.banarasyatra.com`;
+Reply *YES* to lock your dates, WhatsApp us at 💬 +91 81497 83494, or call 📞 +91 84005 54029.
+Email: info.varanasi.yatra@gmail.com | https://varanasiyatra.com | Instagram: @info.varanasi.yatra`;
 }

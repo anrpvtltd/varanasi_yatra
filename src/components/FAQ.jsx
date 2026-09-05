@@ -40,7 +40,7 @@ export default function FAQ() {
         },
         {
             q: "How can we reach your support team during our trip?",
-            a: "We offer round-the-clock 24/7 travel support. Once you book, you will be assigned a dedicated travel coordinator who will be reachable via phone and WhatsApp (+91-8149783494) at any time to assist you instantly."
+            a: "We offer round-the-clock 24/7 travel support. Once you book, you will be assigned a dedicated travel coordinator who will be reachable via phone (+91 84005 54029) and WhatsApp (+91 81497 83494) at any time to assist you instantly."
         }
     ];
 

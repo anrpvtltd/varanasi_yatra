@@ -98,16 +98,16 @@ export default function VaranasiDestination() {
             {
                 "@type": "BreadcrumbList",
                 "itemListElement": [
-                    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://banarasyatra.com/" },
-                    { "@type": "ListItem", "position": 2, "name": "Destinations", "item": "https://banarasyatra.com/#destinations" },
-                    { "@type": "ListItem", "position": 3, "name": "Varanasi", "item": "https://banarasyatra.com/destinations/varanasi" }
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://varanasiyatra.com/" },
+                    { "@type": "ListItem", "position": 2, "name": "Destinations", "item": "https://varanasiyatra.com/#destinations" },
+                    { "@type": "ListItem", "position": 3, "name": "Varanasi", "item": "https://varanasiyatra.com/destinations/varanasi" }
                 ]
             },
             {
                 "@type": "TouristAttraction",
                 "name": "Varanasi (Kashi)",
                 "description": "Varanasi is the spiritual capital of India. Explore ancient temples, holy ghats, and Ganga Aarti ceremonies with local coordinators.",
-                "image": `https://banarasyatra.com/assets/KashiVT.png`,
+                "image": `https://varanasiyatra.com/assets/KashiVT.png`,
                 "address": {
                     "@type": "PostalAddress",
                     "addressLocality": "Varanasi",
@@ -123,7 +123,7 @@ export default function VaranasiDestination() {
             <SEO 
                 title="Varanasi (Kashi) Travel Guide - Local Sightseeing & Tour Packages"
                 description="Explore Varanasi (Kashi) with local experts. Complete guide to Kashi Vishwanath temple, Ganga Aarti, boat rides, foods, shopping tips, and 20 FAQs."
-                canonicalUrl="https://banarasyatra.com/destinations/varanasi"
+                canonicalUrl="https://varanasiyatra.com/destinations/varanasi"
                 ogImage={kashiImg}
                 schema={schemaOrg}
             />
@@ -159,7 +159,7 @@ export default function VaranasiDestination() {
                         <a href="#booking-section" className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white px-6 py-3 rounded-xl font-bold transition text-xs uppercase tracking-wider shadow-lg">
                             Book Tour ➔
                         </a>
-                        <a href="https://wa.me/918149783494" target="_blank" rel="noreferrer" className="bg-stone-900/80 hover:bg-stone-800 border border-stone-800 text-white px-6 py-3 rounded-xl font-bold transition text-xs uppercase tracking-wider flex items-center space-x-2">
+                        <a href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance." target="_blank" rel="noreferrer" className="bg-stone-900/80 hover:bg-stone-800 border border-stone-800 text-white px-6 py-3 rounded-xl font-bold transition text-xs uppercase tracking-wider flex items-center space-x-2">
                             <span className="text-emerald-500 text-sm">💬</span> <span>WhatsApp</span>
                         </a>
                         <a href="tel:+918400554029" className="bg-stone-900/80 hover:bg-stone-800 border border-stone-800 text-white px-6 py-3 rounded-xl font-bold transition text-xs uppercase tracking-wider flex items-center space-x-2">
@@ -572,11 +572,11 @@ export default function VaranasiDestination() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium pt-4">
                             <a href="tel:+918400554029" className="p-4 bg-stone-900 hover:bg-stone-850 rounded-2xl border border-stone-800 transition duration-200 block space-y-1">
                                 <span className="text-orange-500 block">📞 Direct Call Helpline</span>
-                                <span className="text-stone-300 font-mono">+91-8400554029</span>
+                                <span className="text-stone-300 font-mono">+91 84005 54029</span>
                             </a>
-                            <a href="https://wa.me/918149783494" target="_blank" rel="noreferrer" className="p-4 bg-stone-900 hover:bg-stone-850 rounded-2xl border border-stone-800 transition duration-200 block space-y-1">
+                            <a href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance." target="_blank" rel="noreferrer" className="p-4 bg-stone-900 hover:bg-stone-850 rounded-2xl border border-stone-800 transition duration-200 block space-y-1">
                                 <span className="text-emerald-400 block">💬 Chat on WhatsApp</span>
-                                <span className="text-stone-300 font-mono">+91-8149783494</span>
+                                <span className="text-stone-300 font-mono">+91 81497 83494</span>
                             </a>
                         </div>
                     </div>

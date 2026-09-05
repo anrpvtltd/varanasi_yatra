@@ -127,6 +127,12 @@ export default function BookingDetailsDrawer({
         window.open(`tel:${customerPhone}`, '_self');
     };
 
+    const handleEmail = (e) => {
+        e?.stopPropagation();
+        if (!customerEmail || customerEmail === '—') return;
+        window.open(`mailto:${customerEmail}?subject=${encodeURIComponent(`Varanasi Yatra Booking #${bookingNumber} - ${customerName}`)}`, '_self');
+    };
+
     // Service checklist status toggle
     const handleToggleChecklist = async (item) => {
         const nextStatus = item.status === 'CONFIRMED'
@@ -326,6 +332,16 @@ export default function BookingDetailsDrawer({
                                 >
                                     <span>💬</span>
                                     <span>WhatsApp</span>
+                                </button>
+                            )}
+                            {customerEmail && customerEmail !== '—' && (
+                                <button
+                                    type="button"
+                                    onClick={handleEmail}
+                                    className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-xs font-bold text-amber-900 transition flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                                >
+                                    <span>✉️</span>
+                                    <span>Email</span>
                                 </button>
                             )}
                         </div>

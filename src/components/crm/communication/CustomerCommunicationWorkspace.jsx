@@ -123,6 +123,16 @@ export default function CustomerCommunicationWorkspace({ token, user: _user }) {
         setTimeout(() => setFeedback(''), 4000);
     };
 
+    const handleCallCustomer = () => {
+        if (!selectedCustomer?.phone) return;
+        window.open(`tel:${selectedCustomer.phone}`, '_self');
+    };
+
+    const handleEmailCustomer = () => {
+        if (!selectedCustomer?.email || selectedCustomer.email.includes('offline-client')) return;
+        window.open(`mailto:${selectedCustomer.email}?subject=${encodeURIComponent(`Varanasi Yatra - ${selectedCustomer.name}`)}&body=${encodeURIComponent(generatedMessage)}`, '_self');
+    };
+
     return (
         <div className="space-y-6 text-left select-none">
             {/* Header */}
@@ -276,17 +286,43 @@ export default function CustomerCommunicationWorkspace({ token, user: _user }) {
                             {/* CTA Bar */}
                             <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
                                 <span className="text-xs text-slate-400">
-                                    Opens WhatsApp Web / Mobile directly with encoded message.
+                                    Direct communication channels with the traveler:
                                 </span>
-                                <Button
-                                    type="button"
-                                    variant="primary"
-                                    onClick={handleOpenWhatsApp}
-                                    icon={<span>📱</span>}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                                >
-                                    Open in WhatsApp Web →
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    {selectedCustomer.phone && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleCallCustomer}
+                                            icon={<span>📞</span>}
+                                            className="bg-slate-100 hover:bg-slate-200 text-slate-800"
+                                        >
+                                            Call
+                                        </Button>
+                                    )}
+                                    {selectedCustomer.email && !selectedCustomer.email.includes('offline-client') && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleEmailCustomer}
+                                            icon={<span>✉️</span>}
+                                            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                        >
+                                            Email Draft
+                                        </Button>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="primary"
+                                        onClick={handleOpenWhatsApp}
+                                        icon={<span>📱</span>}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                    >
+                                        Open in WhatsApp Web →
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     ) : (

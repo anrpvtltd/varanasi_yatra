@@ -25,7 +25,7 @@ export default function ContactSection() {
                                 <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Primary Support (WhatsApp)</h3>
                                 <p className="text-[11px] text-stone-500 leading-relaxed font-medium">Click to chat instantly with our booking desk. Send your dates and get custom quotes directly on your phone.</p>
                                 <a 
-                                    href="https://wa.me/918149783494" 
+                                    href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance." 
                                     target="_blank" 
                                     rel="noreferrer" 
                                     className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs transition duration-200"
@@ -41,7 +41,7 @@ export default function ContactSection() {
                                 <span className="text-xl">📞</span>
                                 <h4 className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Phone Call</h4>
                                 <a href="tel:+918400554029" className="text-sm font-bold text-stone-900 hover:text-orange-600 transition-colors font-mono">
-                                    +91-8400554029
+                                    +91 84005 54029
                                 </a>
                             </div>
                             <div className="p-5 border border-stone-200/80 rounded-2xl space-y-1.5 bg-stone-50/30">

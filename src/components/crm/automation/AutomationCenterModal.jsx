@@ -25,7 +25,7 @@ export default function AutomationCenterModal({ isOpen, onClose, token, userRole
         bookingId: 'VY-B-2026-0042',
         paidAmount: '15,000',
         amountDue: '25,000',
-        paymentLink: 'https://pay.banarasyatra.com/b/VY-B-2026-0042'
+        paymentLink: 'https://pay.varanasiyatra.com/b/VY-B-2026-0042'
     });
     const [renderedPreview, setRenderedPreview] = useState({ subject: '', body: '' });
 

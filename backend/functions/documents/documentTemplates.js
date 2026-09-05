@@ -11,17 +11,19 @@ const BRAND_HEADER = `
         </div>
         <div style="text-align: right; color: #cbd5e1; font-size: 11px; line-height: 1.5;">
             <div>Dashashwamedh Ghat Road, Varanasi, UP 221001</div>
-            <div>Support: +91 98765 43210 | info@banarasyatra.com</div>
-            <div>www.banarasyatra.com</div>
+            <div>Phone: +91 84005 54029 | WhatsApp: +91 81497 83494</div>
+            <div>info.varanasi.yatra@gmail.com | https://varanasiyatra.com</div>
         </div>
     </div>
 </div>
 `;
 
 const FOOTER_NOTE = `
-<div style="margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 10px; font-family: sans-serif;">
-    <div>Computer Generated Official Document — Varanasi Yatra Travel OS</div>
-    <div>For assistance or trip modifications, contact your Yatra Manager at support@banarasyatra.com</div>
+<div style="margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 10px; font-family: sans-serif; line-height: 1.6;">
+    <div style="font-weight: 700; color: #334155; margin-bottom: 4px;">Varanasi Yatra · Authentic Pilgrimages & Custom Tours</div>
+    <div>Phone: +91 84005 54029 · WhatsApp: +91 81497 83494 · Email: info.varanasi.yatra@gmail.com</div>
+    <div>Instagram: @info.varanasi.yatra · Website: https://varanasiyatra.com</div>
+    <div style="margin-top: 6px; font-size: 9px; color: #94a3b8;">Computer Generated Official Document — Varanasi Yatra Travel OS</div>
 </div>
 `;
 
@@ -162,7 +164,7 @@ function buildTravelVoucherTemplate(data) {
             <div style="font-size: 12px; background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
                 <div>🚘 <strong>Driver:</strong> ${b.driverName || 'Ramesh Kumar'} (${b.driverMobile || '+91 91111 22222'})</div>
                 <div>🏨 <strong>Hotel:</strong> ${b.hotelDetails || 'Varanasi Heritage Stay'}</div>
-                <div>📞 <strong>24/7 Helpline:</strong> +91 98765 43210</div>
+                <div>📞 <strong>Helpline:</strong> +91 84005 54029 | 💬 <strong>WhatsApp:</strong> +91 81497 83494</div>
             </div>
 
             <h3 style="color: #0f172a; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #ea580c; padding-bottom: 4px;">4. Payment Status Summary</h3>

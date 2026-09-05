@@ -4,7 +4,7 @@ export const buildOrganizationSchema = () => ({
     "@context": "https://schema.org",
     "@type": "TravelAgency",
     "name": "Varanasi Yatra",
-    "alternateName": "Varanasi Yatra Travel & Tours",
+    "alternateName": ["BANARAS YATRA Travel & Tours", "Varanasi Yatra Travel & Tours"],
     "url": BASE_DOMAIN,
     "logo": `${BASE_DOMAIN}/logo.png`,
     "description": "Premier spiritual pilgrimage and customized tour operator in Varanasi, providing verified hotels near the ghats, private river boat cruises, Kashi Vishwanath darshan assistance, and private transport.",
@@ -29,7 +29,7 @@ export const buildOrganizationSchema = () => ({
         "closes": "23:59"
     },
     "sameAs": [
-        "https://instagram.com/info.varanasi.yatra"
+        "https://www.instagram.com/info.varanasi.yatra/"
     ],
     "priceRange": "₹₹"
 });

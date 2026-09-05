@@ -48,7 +48,7 @@ export default function Header() {
                     <div className="hidden sm:block text-right">
                         <span className="block text-[9px] text-stone-500 uppercase font-bold tracking-wider">Direct Helpline</span>
                         <a href="tel:+918400554029" className="text-xs font-mono font-bold text-orange-500 hover:underline">
-                            +91-8400554029
+                            +91 84005 54029
                         </a>
                     </div>
 
@@ -119,7 +119,7 @@ export default function Header() {
                     <div className="pt-4 border-t border-stone-900">
                         <span className="block text-[9px] text-stone-500 uppercase font-bold tracking-wider mb-1">Direct Helpline</span>
                         <a href="tel:+918400554029" className="text-xs font-mono font-bold text-orange-500">
-                            +91-8400554029
+                            +91 84005 54029
                         </a>
                     </div>
                 </nav>

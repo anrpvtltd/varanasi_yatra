@@ -37,6 +37,6 @@ export const FAQS = [
     },
     {
         q: "How can we reach your local team during our trip?",
-        a: "You have 24x7 direct access to our local travel desk via phone (+91-8400554029) and WhatsApp (+91-8149783494) at any hour throughout your stay."
+        a: "You have 24x7 direct access to our local travel desk via phone (+91 84005 54029) and WhatsApp (+91 81497 83494) at any hour throughout your stay."
     }
 ];

@@ -1,4 +1,7 @@
 import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const BASE_URL = 'http://127.0.0.1:5174';
 const API_URL = 'http://127.0.0.1:5001';
@@ -337,6 +340,7 @@ async function runRedTeamAudit() {
     const browser = await puppeteer.launch({
         executablePath: CHROME_PATH,
         headless: true,
+        userDataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'chrome_redteam_')),
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 

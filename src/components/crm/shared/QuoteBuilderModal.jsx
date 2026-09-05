@@ -574,9 +574,9 @@ export default function QuoteBuilderModal({
                         </div>
                     ` : ''}
 
-                    <div style="margin-top:30px; font-size:12px; color:#64748b; border-top:1px solid #e2e8f0; padding-top:16px;">
+                    <div style="margin-top:30px; font-size:12px; color:#64748b; border-top:1px solid #e2e8f0; padding-top:16px; line-height: 1.6;">
                         <p><strong>Terms:</strong> ${termsNotes}</p>
-                        <p>Contact: +91 9876543210 · support@varanasiyatra.com</p>
+                        <p><strong>Varanasi Yatra</strong> · Phone: +91 84005 54029 · WhatsApp: +91 81497 83494 · Email: info.varanasi.yatra@gmail.com · Web: https://varanasiyatra.com · Instagram: @info.varanasi.yatra</p>
                     </div>
                     <script>window.print();</script>
                 </body>
@@ -1207,7 +1207,7 @@ export default function QuoteBuilderModal({
 
                                 <div className="text-xs text-slate-500 border-t border-slate-200 pt-3">
                                     <p><strong>Terms:</strong> {termsNotes}</p>
-                                    <p className="mt-1">For support & queries: 📞 +91 9876543210 · www.banarasyatra.com</p>
+                                    <p className="mt-1">For support & booking: 📞 +91 84005 54029 · 💬 +91 81497 83494 · info.varanasi.yatra@gmail.com · https://varanasiyatra.com</p>
                                 </div>
                             </div>
                         </div>

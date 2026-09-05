@@ -169,14 +169,14 @@ export default function PublicHeader() {
                             }}
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-center py-3 rounded-xl font-bold text-xs tracking-wider shadow-sm flex items-center justify-center gap-2"
                         >
-                            <span>Chat on WhatsApp (+91-8149783494)</span>
+                            <span>Chat on WhatsApp (+91 81497 83494)</span>
                         </a>
 
                         <a
                             href="tel:+918400554029"
                             className="w-full bg-stone-900 text-stone-300 text-center py-2.5 rounded-xl text-xs font-semibold border border-stone-800 flex items-center justify-center gap-1.5"
                         >
-                            <span>Helpline: +91-8400554029</span>
+                            <span>Helpline: +91 84005 54029</span>
                         </a>
                     </div>
                 </div>

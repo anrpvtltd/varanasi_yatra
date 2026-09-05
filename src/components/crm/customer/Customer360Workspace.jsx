@@ -307,6 +307,34 @@ export default function Customer360Workspace({
                                             <span>✉️ {activeCustomer.email}</span>
                                             <span>📍 {activeCustomer.city}</span>
                                         </p>
+                                        <div className="flex flex-wrap items-center gap-2 pt-2">
+                                            {activeCustomer.phone && (
+                                                <a
+                                                    href={`tel:${activeCustomer.phone}`}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold border border-white/20 transition"
+                                                >
+                                                    <span>📞</span> Call
+                                                </a>
+                                            )}
+                                            {activeCustomer.phone && (
+                                                <a
+                                                    href={`https://wa.me/${activeCustomer.phone.replace(/[^0-9]/g, '').length === 10 ? `91${activeCustomer.phone.replace(/[^0-9]/g, '')}` : activeCustomer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Namaste ${activeCustomer.name} Ji! This is Varanasi Yatra regarding your travel arrangements.`)}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition"
+                                                >
+                                                    <span>💬</span> WhatsApp
+                                                </a>
+                                            )}
+                                            {activeCustomer.email && !activeCustomer.email.includes('offline-client') && (
+                                                <a
+                                                    href={`mailto:${activeCustomer.email}?subject=${encodeURIComponent(`Varanasi Yatra - ${activeCustomer.name}`)}`}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-bold border border-amber-400/30 transition"
+                                                >
+                                                    <span>✉️</span> Email
+                                                </a>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

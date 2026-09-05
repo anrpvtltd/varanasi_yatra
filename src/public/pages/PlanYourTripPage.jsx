@@ -88,11 +88,11 @@ export default function PlanYourTripPage() {
                         onClick={() => trackWhatsAppClick('plan_trip_page_direct')}
                         className="text-emerald-700 font-bold hover:underline"
                     >
-                        Chat on WhatsApp (+91-8149783494)
+                        Chat on WhatsApp (+91 81497 83494)
                     </a>{' '}
                     or call our helpline at{' '}
                     <a href="tel:+918400554029" className="text-amber-800 font-bold font-mono hover:underline">
-                        +91-8400554029
+                        +91 84005 54029
                     </a>.
                 </div>
             </div>

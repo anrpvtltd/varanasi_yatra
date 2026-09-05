@@ -146,6 +146,15 @@ export default function AboutPage() {
                             <span>Chat on WhatsApp</span>
                             <span>💬</span>
                         </a>
+                        <a
+                            href="tel:+918400554029"
+                            className="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-5 py-3 rounded-xl transition inline-flex items-center gap-2"
+                        >
+                            <span>📞 +91 84005 54029</span>
+                        </a>
+                    </div>
+                    <div className="mt-4 text-[11px] text-amber-200">
+                        Follow our spiritual journey on Instagram: <a href="https://www.instagram.com/info.varanasi.yatra/" target="_blank" rel="noreferrer" className="underline font-bold text-white hover:text-amber-100">@info.varanasi.yatra</a> (BANARAS YATRA Travel & Tours)
                     </div>
                 </div>
             </article>

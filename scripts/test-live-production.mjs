@@ -6,7 +6,9 @@
  */
 
 import puppeteer from 'puppeteer-core';
-import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const PROD_FRONTEND = 'https://varanasi-yatra.vercel.app';
 const PROD_BACKEND = 'https://api-gzo7qrxiuq-uc.a.run.app';
@@ -41,6 +43,7 @@ async function runProductionSmokeTest() {
         browser = await puppeteer.launch({
             executablePath: CHROME_PATH,
             headless: true,
+            userDataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'chrome_prod_')),
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
         });
         const page = await browser.newPage();

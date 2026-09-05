@@ -156,9 +156,9 @@ export default function PackageTemplate() {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             "itemListElement": [
-                { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://banarasyatra.com/" },
-                { "@type": "ListItem", "position": 2, "name": "Packages", "item": "https://banarasyatra.com/#packages" },
-                { "@type": "ListItem", "position": 3, "name": fallbackName, "item": `https://banarasyatra.com/packages/${id}` }
+                { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://varanasiyatra.com/" },
+                { "@type": "ListItem", "position": 2, "name": "Packages", "item": "https://varanasiyatra.com/#packages" },
+                { "@type": "ListItem", "position": 3, "name": fallbackName, "item": `https://varanasiyatra.com/packages/${id}` }
             ]
         };
 
@@ -167,7 +167,7 @@ export default function PackageTemplate() {
                 <SEO 
                     title={`${fallbackName} Package - Varanasi Yatra`}
                     description={`Detailed tour itinerary, travel pricing, and inclusions for ${fallbackName} coming soon.`}
-                    canonicalUrl={`https://banarasyatra.com/packages/${id}`}
+                    canonicalUrl={`https://varanasiyatra.com/packages/${id}`}
                     schema={fallbackSchema}
                 />
                 
@@ -206,9 +206,9 @@ export default function PackageTemplate() {
             {
                 "@type": "BreadcrumbList",
                 "itemListElement": [
-                    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://banarasyatra.com/" },
-                    { "@type": "ListItem", "position": 2, "name": "Packages", "item": "https://banarasyatra.com/#packages" },
-                    { "@type": "ListItem", "position": 3, "name": pkg.name, "item": `https://banarasyatra.com/packages/${id}` }
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://varanasiyatra.com/" },
+                    { "@type": "ListItem", "position": 2, "name": "Packages", "item": "https://varanasiyatra.com/#packages" },
+                    { "@type": "ListItem", "position": 3, "name": pkg.name, "item": `https://varanasiyatra.com/packages/${id}` }
                 ]
             },
             {
@@ -233,7 +233,7 @@ export default function PackageTemplate() {
                     "provider": {
                         "@type": "Organization",
                         "name": "Varanasi Yatra",
-                        "url": "https://banarasyatra.com"
+                        "url": "https://varanasiyatra.com"
                     }
                 }
             }
@@ -245,7 +245,7 @@ export default function PackageTemplate() {
             <SEO 
                 title={pkg.title}
                 description={pkg.metaDesc}
-                canonicalUrl={`https://banarasyatra.com/packages/${id}`}
+                canonicalUrl={`https://varanasiyatra.com/packages/${id}`}
                 ogImage={pkg.image}
                 schema={schemaOrg}
             />
@@ -384,7 +384,7 @@ export default function PackageTemplate() {
                                     Get Quote Now ➔
                                 </a>
                                 <a 
-                                    href="https://wa.me/918149783494"
+                                    href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance."
                                     target="_blank"
                                     rel="noreferrer"
                                     className="block text-center text-xs font-bold uppercase tracking-wider bg-stone-900 border border-stone-800 text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 py-3.5 rounded-xl transition duration-200"

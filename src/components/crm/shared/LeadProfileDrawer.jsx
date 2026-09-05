@@ -52,6 +52,11 @@ export default function LeadProfileDrawer({
         window.open(`tel:${selectedLead.mobile}`, '_self');
     };
 
+    const handleEmailClick = () => {
+        if (!selectedLead.email) return;
+        window.open(`mailto:${selectedLead.email}?subject=${encodeURIComponent(`Varanasi Yatra Travel Enquiry - ${selectedLead.name}`)}`, '_self');
+    };
+
     const travelDateFormatted = selectedLead.date
         ? new Date(selectedLead.date).toISOString().split('T')[0]
         : '';
@@ -155,6 +160,18 @@ export default function LeadProfileDrawer({
                         >
                             WhatsApp
                         </Button>
+                        {selectedLead.email && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleEmailClick}
+                                icon={<span>✉️</span>}
+                                className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                            >
+                                Email
+                            </Button>
+                        )}
                     </div>
                 </div>
 

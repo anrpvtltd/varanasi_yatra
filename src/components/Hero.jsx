@@ -89,7 +89,7 @@ export default function Hero() {
                         <a href="#packages" className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-xl text-xs flex items-center space-x-2 transform hover:scale-105 duration-200">
                             <span>Explore Packages</span> <span>➔</span>
                         </a>
-                        <a href="https://wa.me/918149783494" target="_blank" rel="noreferrer" className="bg-stone-900/80 hover:bg-stone-800 border border-stone-800 text-white px-6 py-3 rounded-xl font-bold transition text-xs flex items-center space-x-2 transform hover:scale-105 duration-200">
+                        <a href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance." target="_blank" rel="noreferrer" className="bg-stone-900/80 hover:bg-stone-800 border border-stone-800 text-white px-6 py-3 rounded-xl font-bold transition text-xs flex items-center space-x-2 transform hover:scale-105 duration-200">
                             <span className="text-emerald-500">💬</span> <span>Chat on WhatsApp</span>
                         </a>
                     </div>
