@@ -27,8 +27,8 @@ async function connectDatabase(customUri = null) {
     const isProduction = process.env.NODE_ENV === 'production';
     const isStaging = process.env.NODE_ENV === 'staging';
     const isTest = process.env.NODE_ENV === 'test';
-    const maxRetries = (isProduction || isStaging) ? 5 : 1;
-    const timeoutMs = (isProduction || isStaging) ? 5000 : (isTest ? 2000 : 1000);
+    const maxRetries = (isProduction || isStaging) ? 5 : 3;
+    const timeoutMs = (isProduction || isStaging) ? 10000 : 8000;
 
     const mongooseOptions = {
         maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE) || 10,

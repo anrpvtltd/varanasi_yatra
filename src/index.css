@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-teal: #0E4A4F;
+  --color-brand-saffron: #F58220;
+  --color-brand-terracotta: #B5522D;
+  --color-brand-gold: #D4AF37;
+  --color-brand-beige: #F8F5EC;
+  --color-brand-brown: #3E2C1C;
+
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-brand: "Playfair Display", serif;
+  --font-hindi: "Noto Serif Devanagari", serif;
+}
+
 html {
   scroll-behavior: smooth;
 }

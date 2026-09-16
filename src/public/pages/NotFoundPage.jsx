@@ -6,9 +6,9 @@ export default function NotFoundPage() {
     return (
         <>
             <SEO
-                title="Page Not Found (404) | Varanasi Yatra"
-                description="The page you are looking for does not exist. Explore authentic Varanasi experiences, tours, and travel guides on Varanasi Yatra."
-                pathname="/404"
+                title="Page Not Found (404) | Kashi-Vashi"
+                description="The page you are looking for does not exist. Explore authentic Varanasi experiences, tours, and travel guides on Kashi-Vashi."
+                noIndex={true}
             />
 
             <div className="min-h-[60vh] flex items-center justify-center px-4 sm:px-6 py-16 text-center">

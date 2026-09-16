@@ -1,0 +1,25 @@
+{
+  "short_name": "Kashi-Vashi",
+  "name": "Kashi-Vashi — Spiritual & Heritage Journeys",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180"
+    },
+    {
+      "src": "/logo.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#F8F5EC",
+  "theme_color": "#0E4A4F",
+  "display": "standalone"
+}

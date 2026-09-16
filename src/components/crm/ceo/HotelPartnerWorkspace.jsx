@@ -129,23 +129,26 @@ export default function HotelPartnerWorkspace({ token, user }) {
     const handleDownloadSvg = (partner) => {
         const destUrl = `${window.location.origin}/p/${partner.partnerCode}`;
         const svgString = generateQRSvgString(destUrl, { size: 600, margin: 4 });
-        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const svgContent = svgString;
+        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `VaranasiYatra_QR_${partner.partnerCode}.svg`;
+        link.download = `KashiVashi_QR_${partner.partnerCode}.svg`;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
 
-    // Download QR Code as PNG
-    const handleDownloadPng = (partner) => {
-        const destUrl = `${window.location.origin}/p/${partner.partnerCode}`;
-        const dataUrl = generateQRPngDataUrl(destUrl, 600);
-        if (!dataUrl) return;
+    const handleDownloadPng = async (partner) => {
+        const svgElement = document.getElementById(`qr-svg-${partner.partnerCode}`);
+        if (!svgElement) return;
+
+        const pngUrl = await svgToPng(svgElement, 1024);
         const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `VaranasiYatra_QR_${partner.partnerCode}.png`;
+        link.href = pngUrl;
+        link.download = `KashiVashi_QR_${partner.partnerCode}.png`;
         link.click();
     };
 

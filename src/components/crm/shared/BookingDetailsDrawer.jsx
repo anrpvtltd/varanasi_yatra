@@ -5,7 +5,7 @@ import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import { TextArea } from '../ui/Input';
 import { crmApi } from '../../../services/crmApi';
-import { formatSafeDate } from '../../../utils/dateUtils';
+import { formatSafeDate, safeDateOnly } from '../../../utils/dateUtils';
 import RecordPaymentModal from './RecordPaymentModal';
 
 function getCategoryIcon(category) {
@@ -117,7 +117,7 @@ export default function BookingDetailsDrawer({
         if (!customerPhone) return;
         const clean = customerPhone.replace(/[^0-9]/g, '');
         const phone = clean.length === 10 ? `91${clean}` : clean;
-        const msg = encodeURIComponent(`Namaste ${customerName} Ji! Regarding your confirmed Varanasi Yatra trip (#${bookingNumber}), we are reviewing your travel arrangements.`);
+        const msg = encodeURIComponent(`Namaste ${customerName} Ji! Regarding your confirmed Kashi-Vashi trip (#${bookingNumber}), we are reviewing your travel arrangements.`);
         window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
     };
 
@@ -130,7 +130,7 @@ export default function BookingDetailsDrawer({
     const handleEmail = (e) => {
         e?.stopPropagation();
         if (!customerEmail || customerEmail === '—') return;
-        window.open(`mailto:${customerEmail}?subject=${encodeURIComponent(`Varanasi Yatra Booking #${bookingNumber} - ${customerName}`)}`, '_self');
+        window.open(`mailto:${customerEmail}?subject=${encodeURIComponent(`Kashi-Vashi Booking #${bookingNumber} - ${customerName}`)}`, '_self');
     };
 
     // Service checklist status toggle
@@ -188,7 +188,7 @@ export default function BookingDetailsDrawer({
                     receiptNo: `REC-${(payment?.paymentId || '').slice(-6) || 'VY-01'}`,
                     payment: {
                         paymentId: payment?.paymentId || `PAY-${Date.now().toString().slice(-6)}`,
-                        date: payment?.paymentDate || new Date().toISOString().split('T')[0],
+                        date: safeDateOnly(payment?.paymentDate || new Date()),
                         bookingId: bookingNumber,
                         method: payment?.paymentMethod || 'UPI',
                         customerName,

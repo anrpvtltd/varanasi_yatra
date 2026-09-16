@@ -100,13 +100,13 @@ export default function CustomerCommunicationWorkspace({ token, user: _user }) {
         const due = selectedCustomer.dueAmount ? `₹${selectedCustomer.dueAmount.toLocaleString('en-IN')}` : 'your pending balance';
 
         if (actionType === 'QUOTE_FOLLOWUP') {
-            return `Pranam ${name} ji! 🙏 Greetings from Varanasi Yatra. We have prepared your customized pilgrimage itinerary for Kashi. Please let us know if you would like any revisions or special darshan arrangements. We are here to ensure your spiritual journey is seamless.`;
+            return `Pranam ${name} ji! 🙏 Greetings from Kashi-Vashi. We have prepared your customized pilgrimage itinerary for Kashi. Please let us know if you would like any revisions or special darshan arrangements. We are here to ensure your spiritual journey is seamless.`;
         }
         if (actionType === 'PAYMENT_REMINDER') {
-            return `Pranam ${name} ji! 🙏 With reference to your confirmed Varanasi Yatra booking (${bNum}), kindly note that the remaining balance of ${due} is due before travel on ${date}. You may pay via UPI or Bank Transfer. Please share the confirmation UTR once done. Har Har Mahadev!`;
+            return `Pranam ${name} ji! 🙏 With reference to your confirmed Kashi-Vashi booking (${bNum}), kindly note that the remaining balance of ${due} is due before travel on ${date}. You may pay via UPI or Bank Transfer. Please share the confirmation UTR once done. Har Har Mahadev!`;
         }
         if (actionType === 'TRIP_BRIEFING') {
-            return `Pranam ${name} ji! 🙏 Your spiritual journey with Varanasi Yatra commences soon on ${date}. Our operational coordinator will connect with your driver and pandit details. For any immediate assistance upon arrival at Varanasi, feel free to reply directly here. Shubh Yatra!`;
+            return `Pranam ${name} ji! 🙏 Your spiritual journey with Kashi-Vashi commences soon on ${date}. Our operational coordinator will connect with your driver and pandit details. For any immediate assistance upon arrival at Varanasi, feel free to reply directly here. Shubh Yatra!`;
         }
         return customMessage;
     }, [selectedCustomer, actionType, customMessage]);
@@ -130,7 +130,7 @@ export default function CustomerCommunicationWorkspace({ token, user: _user }) {
 
     const handleEmailCustomer = () => {
         if (!selectedCustomer?.email || selectedCustomer.email.includes('offline-client')) return;
-        window.open(`mailto:${selectedCustomer.email}?subject=${encodeURIComponent(`Varanasi Yatra - ${selectedCustomer.name}`)}&body=${encodeURIComponent(generatedMessage)}`, '_self');
+        window.open(`mailto:${selectedCustomer.email}?subject=${encodeURIComponent(`Kashi-Vashi - ${selectedCustomer.name}`)}&body=${encodeURIComponent(generatedMessage)}`, '_self');
     };
 
     return (

@@ -2,8 +2,8 @@ services:
   - type: web
     name: varanasi-yatra-backend
     env: node
-    plan: standard
-    buildCommand: cd backend && npm install --production
+    plan: free
+    buildCommand: cd backend && npm install --omit=dev
     startCommand: node backend/server.js
     healthCheckPath: /health
     envVars:
@@ -16,6 +16,10 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: CEO_INITIAL_PASSWORD
+        sync: false
+      - key: MANAGER_INITIAL_PASSWORD
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false

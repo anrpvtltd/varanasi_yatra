@@ -20,6 +20,7 @@ const AboutPage = lazy(() => import('./public/pages/AboutPage'));
 const ContactPage = lazy(() => import('./public/pages/ContactPage'));
 const PlanYourTripPage = lazy(() => import('./public/pages/PlanYourTripPage'));
 const PartnerQRPage = lazy(() => import('./public/pages/PartnerQRPage'));
+const AreaQRLanding = lazy(() => import('./public/pages/AreaQRLanding'));
 const NotFoundPage = lazy(() => import('./public/pages/NotFoundPage'));
 
 // 🔒 CODE SPLIT: CRM is lazily loaded so public visitors NEVER download the 860KB+ CRM bundle
@@ -124,6 +125,9 @@ export default function App() {
 
                 {/* Hotel Partner QR Scan Route */}
                 <Route path="/p/:partnerId" element={<PublicRoute><PartnerQRPage /></PublicRoute>} />
+
+                {/* Dynamic Area QR Scan Route */}
+                <Route path="/q/:qrId" element={<PublicRoute><AreaQRLanding /></PublicRoute>} />
 
                 {/* Legacy Route Compatibilities */}
                 <Route path="/packages/:id" element={<LegacyPackageRedirect />} />

@@ -42,7 +42,7 @@ export default function ImageWithSkeleton({
             />
             {error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-stone-100 text-stone-400 text-xs font-medium">
-                    <span>Varanasi Yatra</span>
+                    <span>Kashi-Vashi</span>
                 </div>
             )}
         </div>

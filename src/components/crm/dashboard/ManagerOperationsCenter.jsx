@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { crmApi } from '../../../services/crmApi';
-import { formatSafeDate } from '../../../utils/dateUtils';
+import { formatSafeDate, safeDateOnly } from '../../../utils/dateUtils';
 import { KPICard } from '../ui/Card';
 import { TableContainer, Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '../ui/Table';
 import StatusBadge from '../ui/StatusBadge';
@@ -10,6 +10,7 @@ import { SearchInput, TextArea } from '../ui/Input';
 import { EmptyState, LoadingState } from '../ui/FeedbackStates';
 import RecordPaymentModal from '../shared/RecordPaymentModal';
 import PaymentHistoryDrawer from '../shared/PaymentHistoryDrawer';
+import CRMErrorBoundary from '../shared/CRMErrorBoundary';
 
 function formatLastActivity(dateStr) {
     if (!dateStr) return 'Recent';
@@ -328,7 +329,7 @@ export default function ManagerOperationsCenter({
 
     const tripSubCounts = useMemo(() => {
         const list = enrichedRecords.filter(r => r.stage === 'TRIP' || r.matchedBooking || r.status === 'Confirmed');
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = safeDateOnly(new Date());
         return {
             ALL: list.length,
             UPCOMING: list.filter(r => r.bookingStatus !== 'COMPLETED' && r.bookingStatus !== 'CANCELLED' && (!r.date || r.date >= todayStr)).length,
@@ -344,12 +345,12 @@ export default function ManagerOperationsCenter({
         return enrichedRecords.filter(r => {
             const query = searchQuery.trim().toLowerCase();
             const matchesSearch = !query ||
-                (r.name && r.name.toLowerCase().includes(query)) ||
-                (r.mobile && r.mobile.includes(query)) ||
-                (r._id && r._id.toLowerCase().includes(query)) ||
-                (r.destination && r.destination.toLowerCase().includes(query)) ||
-                (r.bookingNumber && r.bookingNumber.toLowerCase().includes(query)) ||
-                (r.latestQuote?.quoteNumber && r.latestQuote.quoteNumber.toLowerCase().includes(query));
+                String(r.name || '').toLowerCase().includes(query) ||
+                String(r.mobile || r.phone || '').toLowerCase().includes(query) ||
+                String(r._id || '').toLowerCase().includes(query) ||
+                String(r.destination || '').toLowerCase().includes(query) ||
+                String(r.bookingNumber || '').toLowerCase().includes(query) ||
+                String(r.latestQuote?.quoteNumber || '').toLowerCase().includes(query);
 
             if (!matchesSearch) return false;
 
@@ -396,7 +397,7 @@ export default function ManagerOperationsCenter({
             if (stageFilter === 'TRIP') {
                 const isTrip = r.stage === 'TRIP' || r.matchedBooking || r.status === 'Confirmed';
                 if (!isTrip) return false;
-                const todayStr = new Date().toISOString().split('T')[0];
+                const todayStr = safeDateOnly(new Date());
                 if (tripSubFilter === 'ALL') return true;
                 if (tripSubFilter === 'UPCOMING') return r.bookingStatus !== 'COMPLETED' && r.bookingStatus !== 'CANCELLED' && (!r.date || r.date >= todayStr);
                 if (tripSubFilter === 'PREPARING') return r.bookingStatus === 'PREPARING' || r.nextAction?.actionKey === 'ARRANGE_SERVICES';
@@ -474,7 +475,7 @@ export default function ManagerOperationsCenter({
         if (!r.mobile) return;
         const clean = r.mobile.replace(/[^0-9]/g, '');
         const phone = clean.length === 10 ? `91${clean}` : clean;
-        const msg = encodeURIComponent(`Namaste ${r.name} Ji! Regarding your Varanasi Yatra booking, how may we assist you today?`);
+        const msg = encodeURIComponent(`Namaste ${r.name} Ji! Regarding your Kashi-Vashi booking, how may we assist you today?`);
         window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
     };
 
@@ -574,14 +575,21 @@ export default function ManagerOperationsCenter({
     // Action Center Section 2: CUSTOMER ATTENTION / PENDING ACTION
     const pendingActions = useMemo(() => {
         const list = [];
+        const todayStr = safeDateOnly(new Date());
+
         // Leads follow up
         leads.forEach((l) => {
             if (l.status === 'FOLLOW_UP' || l.status === 'HOT') {
+                const isToday = l.followUpDate && l.followUpDate.startsWith(todayStr);
+                const followUpText = l.followUpDate 
+                    ? `Follow-up: ${isToday ? 'Today' : l.followUpDate}${l.followUpTime ? ` (${l.followUpTime})` : ''}`
+                    : `Destination: ${l.destination || 'Varanasi'}`;
+
                 list.push({
                     id: `lead_${l._id}`,
                     type: 'LEAD',
-                    title: `Follow Up: ${l.name}`,
-                    subtitle: `Enquiry for ${l.destination || 'Varanasi'} · ${l.mobile || ''}`,
+                    title: l.name || 'Enquiry Client',
+                    subtitle: `${followUpText} · 📞 ${l.mobile || 'No phone'}`,
                     badge: l.status === 'HOT' ? '🔥 Hot Lead' : 'Follow Up Due',
                     badgeVariant: l.status === 'HOT' ? 'danger' : 'warning',
                     actionLabel: 'Open Lead',
@@ -589,30 +597,52 @@ export default function ManagerOperationsCenter({
                 });
             }
         });
+
         // Quotes sent awaiting response
         quotes.forEach((q) => {
-            if (q.status === 'SENT' || q.status === 'DRAFT') {
+            const statusUpper = String(q.status || '').toUpperCase();
+            if (statusUpper === 'SENT' || statusUpper === 'DRAFT' || statusUpper === 'AWAITING ACCEPTANCE') {
+                // Find linked lead or enriched customer record
+                const linkedLead = leads.find((l) => String(l._id) === String(q.leadId) || (q.customerId && String(l.customerId) === String(q.customerId)) || (q.customerId && String(l._id) === String(q.customerId)));
+                const customerName = linkedLead?.name || q.customerDetails?.name || q.customerName || (q.customerId ? `Customer (${q.customerId})` : 'Customer');
+
+                const rawPrice = q.finalCustomerPrice !== undefined && q.finalCustomerPrice !== null && !isNaN(Number(q.finalCustomerPrice))
+                    ? Number(q.finalCustomerPrice)
+                    : (q.packageDetails?.finalCustomerPrice !== undefined && !isNaN(Number(q.packageDetails.finalCustomerPrice))
+                        ? Number(q.packageDetails.finalCustomerPrice)
+                        : 0);
+
+                const amountText = rawPrice > 0 ? `₹${rawPrice.toLocaleString('en-IN')}` : 'Quote not finalized';
+
+                let followUpContext = '';
+                if (linkedLead?.followUpDate) {
+                    const isToday = linkedLead.followUpDate.startsWith(todayStr);
+                    followUpContext = ` · Follow-up: ${isToday ? 'Today' : linkedLead.followUpDate}`;
+                }
+
                 list.push({
                     id: `quote_${q._id}`,
                     type: 'QUOTE',
-                    title: `Quote Sent: ${q.quoteNumber}`,
-                    subtitle: `${q.customerDetails?.name || 'Customer'} · ₹${(q.packageDetails?.finalCustomerPrice || 0).toLocaleString('en-IN')}`,
-                    badge: q.status === 'SENT' ? 'Awaiting Acceptance' : 'Draft Proposal',
-                    badgeVariant: 'neutral',
+                    title: customerName,
+                    subtitle: `Quote: ${q.quoteNumber || 'KV-Q-Draft'} · Amount: ${amountText}${followUpContext}`,
+                    badge: statusUpper === 'SENT' ? 'Awaiting Acceptance' : 'Draft Proposal',
+                    badgeVariant: statusUpper === 'SENT' ? 'warning' : 'neutral',
                     actionLabel: 'View Quote',
                     onAction: () => onOpenQuote && onOpenQuote(q)
                 });
             }
         });
+
         // Payments due
         bookings.forEach((b) => {
             const due = b.customerPaymentSummary?.customerDue ?? 0;
             if (due > 0 && b.bookingStatus !== 'CANCELLED') {
+                const customerName = b.customerDetails?.name || 'Customer';
                 list.push({
                     id: `pay_${b._id}`,
                     type: 'PAYMENT',
-                    title: `Balance Due: ₹${due.toLocaleString('en-IN')}`,
-                    subtitle: `${b.customerDetails?.name || 'Customer'} (${b.bookingNumber})`,
+                    title: customerName,
+                    subtitle: `Booking: ${b.bookingNumber} · Due: ₹${due.toLocaleString('en-IN')}`,
                     badge: 'Payment Due',
                     badgeVariant: 'warning',
                     actionLabel: 'Record Payment',
@@ -648,7 +678,8 @@ export default function ManagerOperationsCenter({
     }, [bookings]);
 
     return (
-        <div className="space-y-6 select-none animate-fadeIn text-left">
+        <CRMErrorBoundary name="Manager Operations Center" onRetry={loadData}>
+            <div className="space-y-6 select-none animate-fadeIn text-left">
 
             {/* 1. OPERATIONS DASHBOARD KPI CARDS (Displayed in ALL mode) */}
             {stageFilter === 'ALL' && (
@@ -1769,5 +1800,6 @@ export default function ManagerOperationsCenter({
             )}
 
         </div>
+        </CRMErrorBoundary>
     );
 }

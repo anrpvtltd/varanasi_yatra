@@ -10,8 +10,8 @@ export default function TravelGuideHubPage() {
     return (
         <>
             <SEO
-                title="Varanasi Travel Guide & Practical Tips | Timings, Weather & Transport | Varanasi Yatra"
-                description="Practical, unhurried guides to exploring Varanasi. Verified Aarti timings, seasonal weather insights, Ghat etiquette, and local cab information."
+                title="Varanasi Travel Guide & Practical Tips | Timings, Weather & Transport | Kashi-Vashi"
+                description="Comprehensive Varanasi travel advice compiled by locals. Best time to visit, morning vs evening Aarti timings, ghat etiquette, taxi options, and scam warnings."
                 pathname="/travel-guide"
             />
 

@@ -92,8 +92,8 @@ export default function PartnerQRPage() {
         return (
             <>
                 <SEO
-                    title="Hotel Concierge Desk | Varanasi Yatra"
-                    description="Varanasi Yatra verified local travel concierge for hotel guests in Varanasi."
+                    title="Hotel Concierge Desk | Kashi-Vashi"
+                    description="Kashi-Vashi verified local travel concierge for hotel guests in Varanasi."
                     pathname={`/p/${partnerId || ''}`}
                 />
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
@@ -133,7 +133,7 @@ export default function PartnerQRPage() {
         return (
             <>
                 <SEO
-                    title="Varanasi Travel Concierge | Varanasi Yatra"
+                    title="Varanasi Travel Concierge | Kashi-Vashi"
                     description="Verified local tour facilitation, private boats, and darshan assistance in Varanasi."
                     pathname="/plan-your-trip"
                 />
@@ -146,7 +146,7 @@ export default function PartnerQRPage() {
                             Welcome to Kashi
                         </h1>
                         <p className="text-stone-300 text-xs sm:text-sm max-w-xl mx-auto">
-                            Whether you are staying at a ghat hotel or city retreat, Varanasi Yatra provides transparent, verified private boats, temple darshan, and taxi transfers.
+                            Whether you are staying at a ghat hotel or city retreat, Kashi-Vashi provides transparent, verified private boats, temple darshan, and taxi transfers.
                         </p>
                     </div>
 
@@ -163,7 +163,7 @@ export default function PartnerQRPage() {
     return (
         <>
             <SEO
-                title={`Welcome to Varanasi | Guest Concierge for ${formattedPartner} | Varanasi Yatra`}
+                title={`Welcome to Varanasi | Guest Concierge for ${formattedPartner} | Kashi-Vashi`}
                 description={`Official guest travel desk for ${formattedPartner}. Scam-free private sunrise boats, Kashi Vishwanath Sugam Darshan, and doorstep AC taxis.`}
                 pathname={`/p/${partnerId || ''}`}
             />

@@ -7,6 +7,8 @@ import { SearchInput } from '../ui/Input';
 import { EmptyState } from '../ui/FeedbackStates';
 import { TableContainer, Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '../ui/Table';
 import { DashboardSkeleton } from '../ui/Skeleton';
+import AISalesAssistantPanel from '../shared/AISalesAssistantPanel';
+import CRMErrorBoundary from '../shared/CRMErrorBoundary';
 
 export default function Customer360Workspace({
     token,
@@ -18,6 +20,7 @@ export default function Customer360Workspace({
     const [leads, setLeads] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [quotes, setQuotes] = useState([]);
+    const [serverCustomers, setServerCustomers] = useState(null);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -27,11 +30,17 @@ export default function Customer360Workspace({
         if (!token) return;
         setLoading(true);
         try {
-            const res = await crmApi.fetchManagerDashboard(token);
-            if (res.success) {
-                setLeads(res.leads || []);
-                setBookings(res.bookings || []);
-                setQuotes(res.quotes || []);
+            // ⚡ Phase 13: Fetch pre-aggregated server-side customers (minimal payload, 0 client lag)
+            const res = await crmApi.fetchCustomers(token, { limit: 100 });
+            if (res.success && Array.isArray(res.customers)) {
+                setServerCustomers(res.customers);
+            } else {
+                const fallbackRes = await crmApi.fetchManagerDashboard(token);
+                if (fallbackRes.success) {
+                    setLeads(fallbackRes.leads || []);
+                    setBookings(fallbackRes.bookings || []);
+                    setQuotes(fallbackRes.quotes || []);
+                }
             }
         } catch (err) {
             console.error('Failed to load Customer 360 data:', err);
@@ -44,14 +53,32 @@ export default function Customer360Workspace({
         loadData();
     }, [loadData]);
 
-    // Aggregate unique customer records
+    // Aggregate unique customer records (bypassed if server-aggregated)
     const customers = useMemo(() => {
+        if (serverCustomers && Array.isArray(serverCustomers)) {
+            return serverCustomers.map((c) => ({
+                ...c,
+                id: c.id || c._id || `cust_${c.phone || Math.random()}`,
+                name: c.name || 'Guest',
+                phone: c.phone || '—',
+                email: c.email || '—',
+                city: c.city || 'Varanasi',
+                leads: Array.isArray(c.leads) ? c.leads : [],
+                quotes: Array.isArray(c.quotes) ? c.quotes : [],
+                bookings: Array.isArray(c.bookings) ? c.bookings : [],
+                payments: Array.isArray(c.payments) ? c.payments : [],
+                trips: Array.isArray(c.trips) ? c.trips : [],
+                totalValue: Number(c.totalValue) || 0,
+                totalPaid: Number(c.totalPaid) || 0,
+                remainingDue: Number(c.remainingDue) || 0
+            }));
+        }
         const customerMap = new Map();
 
         // 1. Process Leads
         leads.forEach((l) => {
-            const phone = (l.phone || l.mobile || '').replace(/\D/g, '');
-            const email = (l.email || '').toLowerCase().trim();
+            const phone = String(l.phone || l.mobile || '').replace(/\D/g, '');
+            const email = String(l.email || '').toLowerCase().trim();
             const key = phone || email || l._id;
 
             if (!customerMap.has(key)) {
@@ -85,7 +112,7 @@ export default function Customer360Workspace({
                 }
             }
             if (!matched && (q.customerName || q.customerPhone)) {
-                const phone = (q.customerPhone || '').replace(/\D/g, '');
+                const phone = String(q.customerPhone || '').replace(/\D/g, '');
                 const key = phone || q._id;
                 if (!customerMap.has(key)) {
                     customerMap.set(key, {
@@ -110,11 +137,11 @@ export default function Customer360Workspace({
         // 3. Associate Bookings
         bookings.forEach((b) => {
             const bLeadId = b.leadId || b.customerId;
-            const bPhone = (b.customerDetails?.phone || b.phone || '').replace(/\D/g, '');
+            const bPhone = String(b.customerDetails?.phone || b.phone || '').replace(/\D/g, '');
             let matched = false;
 
             for (const cust of customerMap.values()) {
-                const custPhone = cust.phone.replace(/\D/g, '');
+                const custPhone = String(cust.phone || '').replace(/\D/g, '');
                 if ((bPhone && custPhone && bPhone === custPhone) || cust.leads.some(l => l._id === bLeadId) || cust.id === bLeadId) {
                     cust.bookings.push(b);
                     matched = true;
@@ -144,14 +171,14 @@ export default function Customer360Workspace({
             let totalVal = 0;
             let totalPaid = 0;
 
-            c.bookings.forEach((b) => {
+            (c.bookings || []).forEach((b) => {
                 const bVal = Number(b.packageDetails?.finalCustomerPrice || b.customerPaymentSummary?.packagePrice || b.totalAmount || 0);
                 const bPaid = Number(b.customerPaymentSummary?.totalPaid !== undefined ? b.customerPaymentSummary.totalPaid : (b.advanceAmount || 0));
                 totalVal += bVal;
                 totalPaid += bPaid;
             });
 
-            if (c.bookings.length === 0 && c.quotes.length > 0) {
+            if ((c.bookings || []).length === 0 && (c.quotes || []).length > 0) {
                 totalVal = Number(c.quotes[0].finalCustomerPrice || 0);
             }
 
@@ -162,19 +189,19 @@ export default function Customer360Workspace({
                 remainingDue: Math.max(0, totalVal - totalPaid)
             };
         });
-    }, [leads, quotes, bookings]);
+    }, [serverCustomers, leads, quotes, bookings]);
 
-    // Filter customers by search
+    // Filter customers by search safely
     const filteredCustomers = useMemo(() => {
         if (!searchQuery.trim()) return customers;
         const q = searchQuery.toLowerCase().trim();
-        return customers.filter(
-            (c) =>
-                c.name.toLowerCase().includes(q) ||
-                c.phone.includes(q) ||
-                c.email.toLowerCase().includes(q) ||
-                c.city.toLowerCase().includes(q)
-        );
+        return customers.filter((c) => {
+            const name = String(c.name || '').toLowerCase();
+            const phone = String(c.phone || '').toLowerCase();
+            const email = String(c.email || '').toLowerCase();
+            const city = String(c.city || '').toLowerCase();
+            return name.includes(q) || phone.includes(q) || email.includes(q) || city.includes(q);
+        });
     }, [customers, searchQuery]);
 
     // Auto-select first customer if none selected
@@ -193,7 +220,8 @@ export default function Customer360Workspace({
     }
 
     return (
-        <div className="space-y-6 text-left select-none">
+        <CRMErrorBoundary name="Customer 360 Workspace" onRetry={loadData}>
+            <div className="space-y-6 text-left select-none">
             {/* Header */}
             <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -318,17 +346,17 @@ export default function Customer360Workspace({
                                             )}
                                             {activeCustomer.phone && (
                                                 <a
-                                                    href={`https://wa.me/${activeCustomer.phone.replace(/[^0-9]/g, '').length === 10 ? `91${activeCustomer.phone.replace(/[^0-9]/g, '')}` : activeCustomer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Namaste ${activeCustomer.name} Ji! This is Varanasi Yatra regarding your travel arrangements.`)}`}
+                                                    href={`https://wa.me/${activeCustomer.phone.replace(/[^0-9]/g, '').length === 10 ? `91${activeCustomer.phone.replace(/[^0-9]/g, '')}` : activeCustomer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Namaste ${activeCustomer.name} Ji! This is Kashi-Vashi regarding your travel arrangements.`)}`}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition border border-emerald-200"
                                                 >
                                                     <span>💬</span> WhatsApp
                                                 </a>
                                             )}
-                                            {activeCustomer.email && !activeCustomer.email.includes('offline-client') && (
+                                            {activeCustomer.email && (
                                                 <a
-                                                    href={`mailto:${activeCustomer.email}?subject=${encodeURIComponent(`Varanasi Yatra - ${activeCustomer.name}`)}`}
+                                                    href={`mailto:${activeCustomer.email}?subject=${encodeURIComponent(`Kashi-Vashi - ${activeCustomer.name}`)}`}
                                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-bold border border-amber-400/30 transition"
                                                 >
                                                     <span>✉️</span> Email
@@ -405,36 +433,75 @@ export default function Customer360Workspace({
                                                 Travel Details & Inquired Requirements
                                             </h3>
                                             {activeCustomer.leads.length > 0 ? (
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                                                    <div>
-                                                        <span className="text-slate-400 block">Travel Date</span>
-                                                        <span className="font-bold text-slate-800">
-                                                            {activeCustomer.leads[0].date || activeCustomer.leads[0].travelDate || 'Not specified'}
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 block">Pax / Group</span>
-                                                        <span className="font-bold text-slate-800">
-                                                            {activeCustomer.leads[0].travelers || activeCustomer.leads[0].pax || '1'} Person(s)
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 block">Destination</span>
-                                                        <span className="font-bold text-slate-800">
-                                                            {activeCustomer.leads[0].destination || 'Varanasi'}
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 block">Current Status</span>
-                                                        <div className="mt-0.5">
-                                                            <StatusBadge status={activeCustomer.leads[0].status || 'New'} entity="LEAD" size="sm" />
+                                                <div className="space-y-3">
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                                        <div>
+                                                            <span className="text-slate-400 block">Travel Date</span>
+                                                            <span className="font-bold text-slate-800">
+                                                                {activeCustomer.leads[0].date || activeCustomer.leads[0].travelDate || 'Not specified'}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-slate-400 block">Pax / Group</span>
+                                                            <span className="font-bold text-slate-800">
+                                                                {activeCustomer.leads[0].travelers || activeCustomer.leads[0].pax || '1'} Person(s)
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-slate-400 block">Destination</span>
+                                                            <span className="font-bold text-slate-800">
+                                                                {activeCustomer.leads[0].destination || 'Varanasi'}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-slate-400 block">Current Status</span>
+                                                            <div className="mt-0.5">
+                                                                <StatusBadge status={activeCustomer.leads[0].status || 'New'} entity="LEAD" size="sm" />
+                                                            </div>
                                                         </div>
                                                     </div>
+
+                                                    {/* Lead Origin & QR Attribution Details */}
+                                                    {(() => {
+                                                        const lead = activeCustomer.leads[0];
+                                                        const isQr = lead.source === 'AREA_QR' || lead.source === 'HOTEL_QR' || lead.leadSource === 'QR' || Boolean(lead.qrId) || Boolean(lead.qrAttribution);
+                                                        if (!isQr) return null;
+                                                        const qrId = lead.qrId || lead.qrAttribution?.qrId;
+                                                        const area = lead.areaName || lead.qrAttribution?.areaName;
+                                                        const partner = lead.partnerName || lead.partnerId;
+                                                        return (
+                                                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/60">
+                                                                <span className="font-bold text-orange-900 bg-orange-100 px-2 py-0.5 rounded text-[10px] border border-orange-200 uppercase tracking-wider">
+                                                                    Source: QR{area ? ` • ${area}` : (partner ? ` • ${partner}` : '')}
+                                                                </span>
+                                                                {qrId && (
+                                                                    <span className="text-slate-600 font-mono text-[11px]">
+                                                                        <strong>QR ID:</strong> {qrId}
+                                                                    </span>
+                                                                )}
+                                                                {(lead.placementName || lead.pickup) && (
+                                                                    <span className="text-slate-600 text-[11px]">
+                                                                        <strong>Placement:</strong> {lead.placementName || lead.pickup}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             ) : (
                                                 <p className="text-xs text-slate-400">Direct booking record.</p>
                                             )}
                                         </Card>
+
+                                        {/* 🤖 AI Sales Snapshot (Prompt 7) */}
+                                        {activeCustomer.leads.length > 0 && (
+                                            <AISalesAssistantPanel
+                                                lead={activeCustomer.leads[0]}
+                                                token={token}
+                                                user={_user}
+                                                onOpenQuoteBuilder={onOpenQuote}
+                                            />
+                                        )}
                                     </div>
                                 )}
 
@@ -618,5 +685,6 @@ export default function Customer360Workspace({
                 </div>
             </div>
         </div>
+        </CRMErrorBoundary>
     );
 }

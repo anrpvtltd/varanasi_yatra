@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PACKAGE_TEMPLATES, DEFAULT_SERVICES, COMMERCIAL_MODELS } from '../../../constants/phase4Constants';
 import { calculateQuoteFinancials, formatWhatsAppQuoteText } from '../../../utils/quoteCalculator';
+import { safeDateOnly } from '../../../utils/dateUtils';
 import { crmApi } from '../../../services/crmApi';
+import { DISPLAY_PHONE, DISPLAY_WHATSAPP, EMAIL, WEBSITE_URL, INSTAGRAM_HANDLE, BRAND_NAME } from '../../../shared/config/brand';
 import VendorSelector from './VendorSelector';
 import StatusBadge, { Badge } from '../ui/StatusBadge';
 import Button from '../ui/Button';
@@ -10,7 +12,7 @@ import Button from '../ui/Button';
 const COMMERCIAL_BADGE_CONFIG = {
     [COMMERCIAL_MODELS.SELLING_PRICE]: { label: 'SET SELLING PRICE', variant: 'primary' },
     [COMMERCIAL_MODELS.FIXED_VENDOR_RATE]: { label: 'FIXED RATE', variant: 'info' },
-    [COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED]: { label: 'CUSTOM QUOTE', variant: 'warning' },
+    [COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED]: { label: 'CURRENT VENDOR RATE REQUIRED', variant: 'warning' },
     [COMMERCIAL_MODELS.CUSTOMER_DIRECT]: { label: 'DIRECT', variant: 'success' },
     [COMMERCIAL_MODELS.COMMISSION]: { label: 'COMMISSION', variant: 'neutral' },
     [COMMERCIAL_MODELS.PASS_THROUGH]: { label: 'PASS-THROUGH', variant: 'info' }
@@ -53,13 +55,23 @@ export default function QuoteBuilderModal({
     const [associatedBooking, setAssociatedBooking] = useState(lead?.associatedBooking || null);
     const [expandedServiceIndex, setExpandedServiceIndex] = useState(null);
 
+    // Prompt 9.16 Draft Safety & Inline Line Item Validation
+    const [validationErrors, setValidationErrors] = useState({});
+    const [isDraftRestored, setIsDraftRestored] = useState(false);
+
+    // Prompt 9.14 Phase 7: AI Quote Advisory State (Advisory Only)
+    const [aiQuoteHelp, setAiQuoteHelp] = useState(null);
+    const [aiHelpOpen, setAiHelpOpen] = useState(true);
+    const [loadingAiHelp, setLoadingAiHelp] = useState(false);
+    const [aiHelpDisabled, setAiHelpDisabled] = useState(false);
+
     const loadQuoteIntoBuilder = useCallback((q) => {
         if (!q) return;
         setActiveQuoteId(q._id || null);
         setActiveQuoteStatus(q.status || 'DRAFT');
         setActiveQuoteNumber(q.quoteNumber || '');
         if (q.packageType) setSelectedPackage(q.packageType);
-        if (q.travelDate) setTravelDate(q.travelDate);
+        setTravelDate(safeDateOnly(q.travelDate, ''));
         if (q.travelers) setTravelers(q.travelers);
         if (q.tripDuration) setTripDuration(q.tripDuration);
         if (q.services && q.services.length > 0) {
@@ -106,7 +118,7 @@ export default function QuoteBuilderModal({
             const hasOutside = Boolean(targetLead?.outsideDestinations);
             items.push({
                 category: 'TRANSPORT',
-                commercialModel: hasOutside ? COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED : COMMERCIAL_MODELS.FIXED_VENDOR_RATE,
+                commercialModel: COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED,
                 serviceName: hasOutside ? 'Custom Multi-City Transport' : 'AC Sedan Local Transport',
                 customerDisplayName: hasOutside ? `Dedicated Transport (${targetLead.outsideDestinations})` : 'AC Sedan Local Sightseeing & Transfers',
                 vendorName: '',
@@ -114,11 +126,12 @@ export default function QuoteBuilderModal({
                 resourceId: '',
                 quantity: 3,
                 unit: 'Days',
-                referenceCost: hasOutside ? 0 : 3500,
-                negotiatedVendorCost: hasOutside ? 0 : 3500,
-                customerSellingPrice: hasOutside ? 0 : 3500,
-                customerCharge: hasOutside ? 0 : 10500,
-                vendorCost: hasOutside ? 0 : 3500
+                referenceCost: 0,
+                negotiatedVendorCost: 0,
+                customerSellingPrice: 0,
+                customerCharge: 0,
+                vendorCost: 0,
+                notes: 'Obtain current provider rate based on trip route, vehicle category & availability.'
             });
         }
 
@@ -236,24 +249,64 @@ export default function QuoteBuilderModal({
         return items;
     }, []);
 
+    // Discard unsaved working session draft and reload authoritative backend state
+    const handleDiscardDraft = useCallback(() => {
+        if (lead?._id) {
+            try {
+                sessionStorage.removeItem(`crm_quote_draft_${lead._id}`);
+            } catch {}
+        }
+        setIsDraftRestored(false);
+        setValidationErrors({});
+        if (quoteHistory && quoteHistory.length > 0) {
+            loadQuoteIntoBuilder(quoteHistory[0]);
+        } else {
+            const customItems = buildServicesFromLeadRequirements(lead);
+            if (customItems.length > 0) {
+                setSelectedPackage('CUSTOM');
+                setServicesList(customItems);
+                setDiscount(0);
+            } else {
+                applyPackageTemplate('COMPLETE');
+            }
+        }
+    }, [lead, quoteHistory, loadQuoteIntoBuilder, buildServicesFromLeadRequirements, applyPackageTemplate]);
+
     // Populate initial state when modal opens or lead changes
     useEffect(() => {
         if (lead) {
-            setTravelDate(lead.date || '');
+            setTravelDate(safeDateOnly(lead.date, ''));
             setTravelers(lead.travelers || '1');
             setTripDuration(lead.tripDuration || '3 Days / 2 Nights');
             setAssociatedBooking(lead.associatedBooking || null);
 
-            // Fetch existing quote history for versioning
+            // 1. Check for unsaved working session draft first
+            const draftKey = `crm_quote_draft_${lead._id}`;
+            let hasRestoredDraft = false;
+            try {
+                const savedDraft = sessionStorage.getItem(draftKey);
+                if (savedDraft) {
+                    const parsed = JSON.parse(savedDraft);
+                    if (parsed && Array.isArray(parsed.servicesList) && parsed.servicesList.length > 0) {
+                        loadQuoteIntoBuilder(parsed);
+                        setIsDraftRestored(true);
+                        hasRestoredDraft = true;
+                    }
+                }
+            } catch {}
+
+            // 2. Fetch authoritative quote history from backend
             if (token && lead._id) {
                 crmApi.fetchQuotes(token, lead._id).then(res => {
                     if (res && res.quotes && res.quotes.length > 0) {
                         setQuoteHistory(res.quotes);
-                        const latest = res.quotes[0];
-                        if (latest) {
-                            loadQuoteIntoBuilder(latest);
+                        if (!hasRestoredDraft) {
+                            const latest = res.quotes[0];
+                            if (latest) {
+                                loadQuoteIntoBuilder(latest);
+                            }
                         }
-                    } else {
+                    } else if (!hasRestoredDraft) {
                         const customItems = buildServicesFromLeadRequirements(lead);
                         if (customItems.length > 0) {
                             setSelectedPackage('CUSTOM');
@@ -265,13 +318,82 @@ export default function QuoteBuilderModal({
                     }
                 }).catch(err => {
                     console.error('Error loading quote history:', err);
-                    applyPackageTemplate('COMPLETE');
+                    if (!hasRestoredDraft) {
+                        applyPackageTemplate('COMPLETE');
+                    }
                 });
-            } else {
+            } else if (!hasRestoredDraft) {
                 applyPackageTemplate('COMPLETE');
             }
         }
     }, [lead, token, loadQuoteIntoBuilder, applyPackageTemplate, buildServicesFromLeadRequirements]);
+
+    // Auto-save working draft to sessionStorage whenever operator modifies quote
+    useEffect(() => {
+        if (!isOpen || !lead?._id || servicesList.length === 0) return;
+        try {
+            const draft = {
+                packageType: selectedPackage,
+                services: servicesList,
+                servicesList,
+                marginType,
+                marginValue,
+                discount,
+                travelDate,
+                travelers,
+                tripDuration,
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem(`crm_quote_draft_${lead._id}`, JSON.stringify(draft));
+        } catch {}
+    }, [isOpen, lead?._id, selectedPackage, servicesList, marginType, marginValue, discount, travelDate, travelers, tripDuration]);
+
+    // Warn before unload if Quote Builder is open with unsaved changes
+    useEffect(() => {
+        if (!isOpen || !lead?._id) return;
+        const handleBeforeUnload = (e) => {
+            const draftKey = `crm_quote_draft_${lead._id}`;
+            if (sessionStorage.getItem(draftKey)) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isOpen, lead?._id]);
+
+    // Prompt 9.14 Phase 7: Fetch AI Quote Advisory Assistance (Advisory Only)
+    useEffect(() => {
+        if (!lead || !lead._id || !token) {
+            setAiQuoteHelp(null);
+            return;
+        }
+
+        let isMounted = true;
+        setLoadingAiHelp(true);
+        setAiHelpDisabled(false);
+
+        crmApi.prepareAiQuoteInputs(token, lead._id)
+            .then(res => {
+                if (!isMounted) return;
+                if (res && res.success && res.quotePreparation) {
+                    setAiQuoteHelp(res.quotePreparation);
+                } else if (res && (res.errorCode === 'AI_DISABLED' || res.errorCode === 'MODULE_DISABLED' || res.code === 'AI_DISABLED')) {
+                    setAiQuoteHelp(null);
+                    setAiHelpDisabled(true);
+                } else {
+                    setAiQuoteHelp(null);
+                }
+            })
+            .catch(() => {
+                if (isMounted) setAiQuoteHelp(null);
+            })
+            .finally(() => {
+                if (isMounted) setLoadingAiHelp(false);
+            });
+
+        return () => { isMounted = false; };
+    }, [lead, token]);
 
     const handleServiceChange = (index, field, value) => {
         setServicesList(prev => {
@@ -279,20 +401,34 @@ export default function QuoteBuilderModal({
             updated[index] = { ...updated[index], [field]: value };
             return updated;
         });
+
+        // Real-time inline validation feedback for line item names
+        if (field === 'customerDisplayName' || field === 'serviceName') {
+            if (value && String(value).trim()) {
+                setValidationErrors(prev => {
+                    const next = { ...prev };
+                    delete next[index];
+                    return next;
+                });
+            } else {
+                setValidationErrors(prev => ({ ...prev, [index]: 'Item name is required' }));
+            }
+        }
     };
 
     const handleAddService = (catKey = newServiceCategory) => {
         const catInfo = DEFAULT_SERVICES.find(s => s.id === catKey) || {
-            label: 'Custom Service',
+            label: catKey === 'CUSTOM_SERVICE' ? '' : 'Custom Service',
             defaultUnit: 'Item',
             defaultCommercialModel: COMMERCIAL_MODELS.SELLING_PRICE
         };
         const model = catInfo.defaultCommercialModel || COMMERCIAL_MODELS.SELLING_PRICE;
         const isFreeInPackage = model === COMMERCIAL_MODELS.CUSTOMER_DIRECT || model === COMMERCIAL_MODELS.COMMISSION;
+        const defaultName = catKey === 'CUSTOM_SERVICE' ? '' : catInfo.label;
         const newService = {
             category: catKey,
             commercialModel: model,
-            serviceName: catInfo.label,
+            serviceName: defaultName,
             vendorName: 'Local Resource',
             quantity: 1,
             unit: catInfo.defaultUnit || 'Item',
@@ -304,17 +440,32 @@ export default function QuoteBuilderModal({
             commissionRate: model === COMMERCIAL_MODELS.COMMISSION ? 20 : 0,
             commissionAmount: model === COMMERCIAL_MODELS.COMMISSION ? 500 : 0,
             vendorCost: isFreeInPackage ? 0 : 1000,
-            customerDisplayName: catInfo.label,
+            customerDisplayName: defaultName,
             notes: ''
         };
+        const newIdx = servicesList.length;
         setServicesList(prev => [...prev, newService]);
-        setExpandedServiceIndex(servicesList.length);
+        setExpandedServiceIndex(newIdx);
+        if (!defaultName) {
+            setValidationErrors(prev => ({ ...prev, [newIdx]: 'Item name is required' }));
+        }
     };
 
     const handleRemoveService = (index) => {
         setServicesList(prev => prev.filter((_, i) => i !== index));
+        setValidationErrors(prev => {
+            const next = {};
+            Object.entries(prev).forEach(([k, v]) => {
+                const num = Number(k);
+                if (num < index) next[num] = v;
+                else if (num > index) next[num - 1] = v;
+            });
+            return next;
+        });
         if (expandedServiceIndex === index) {
             setExpandedServiceIndex(null);
+        } else if (expandedServiceIndex > index) {
+            setExpandedServiceIndex(expandedServiceIndex - 1);
         }
     };
 
@@ -350,6 +501,23 @@ export default function QuoteBuilderModal({
 
     const handleSaveQuote = async (status = 'SENT') => {
         try {
+            // Validate all line items have a non-empty name
+            const errors = {};
+            servicesList.forEach((s, idx) => {
+                const label = (s.customerDisplayName !== undefined ? s.customerDisplayName : s.serviceName) || '';
+                if (typeof label === 'string' && !label.trim()) {
+                    errors[idx] = 'Item name is required';
+                }
+            });
+
+            if (Object.keys(errors).length > 0) {
+                setValidationErrors(errors);
+                const firstInvalidIdx = Number(Object.keys(errors)[0]);
+                setExpandedServiceIndex(firstInvalidIdx);
+                alert('❌ Item name is required. Please enter a name for all quote line items.');
+                return;
+            }
+
             setIsSaving(true);
             const sanitizedServices = servicesList.map(s => {
                 const model = s.commercialModel || COMMERCIAL_MODELS.SELLING_PRICE;
@@ -405,6 +573,13 @@ export default function QuoteBuilderModal({
 
             const res = await crmApi.createQuote(token, payload);
             if (res && res.success) {
+                if (lead?._id) {
+                    try {
+                        sessionStorage.removeItem(`crm_quote_draft_${lead._id}`);
+                    } catch {}
+                }
+                setIsDraftRestored(false);
+
                 if (status === 'ACCEPTED') {
                     try {
                         const bookingRes = await crmApi.createBooking(token, res.quote._id);
@@ -496,7 +671,7 @@ export default function QuoteBuilderModal({
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Travel Proposal - ${lead.name} - Varanasi Yatra</title>
+                    <title>Travel Proposal - ${lead.name} - Kashi-Vashi</title>
                     <style>
                         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; color: #0f172a; line-height: 1.5; }
                         .header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
@@ -513,7 +688,7 @@ export default function QuoteBuilderModal({
                 <body>
                     <div class="header">
                         <div>
-                            <h1>VARANASI YATRA</h1>
+                            <h1>KASHI-VASHI</h1>
                             <p style="margin:4px 0 0; font-size:12px; color:#64748b;">Curated Pilgrimage & Travel Experiences · Varanasi</p>
                         </div>
                         <div style="text-align:right;">
@@ -554,7 +729,7 @@ export default function QuoteBuilderModal({
                                 return `
                                     <tr>
                                         <td><strong>${s.customerDisplayName || s.serviceName}</strong></td>
-                                        <td style="color:#64748b;">${s.vendorName || 'Varanasi Yatra Operations'}</td>
+                                        <td style="color:#64748b;">${s.vendorName || 'Kashi-Vashi Operations'}</td>
                                         <td style="text-align:center;">${qty} ${s.unit || 'Item'}</td>
                                         <td style="text-align:right; font-weight:bold; color:#0f172a;">${priceText}</td>
                                     </tr>
@@ -576,7 +751,7 @@ export default function QuoteBuilderModal({
 
                     <div style="margin-top:30px; font-size:12px; color:#64748b; border-top:1px solid #e2e8f0; padding-top:16px; line-height: 1.6;">
                         <p><strong>Terms:</strong> ${termsNotes}</p>
-                        <p><strong>Varanasi Yatra</strong> · Phone: +91 84005 54029 · WhatsApp: +91 81497 83494 · Email: info.varanasi.yatra@gmail.com · Web: https://varanasiyatra.com · Instagram: @info.varanasi.yatra</p>
+                        <p><strong>${BRAND_NAME}</strong> · Phone: ${DISPLAY_PHONE} · WhatsApp: ${DISPLAY_WHATSAPP} · Email: ${EMAIL} · Web: ${WEBSITE_URL} · Instagram: ${INSTAGRAM_HANDLE}</p>
                     </div>
                     <script>window.print();</script>
                 </body>
@@ -675,6 +850,23 @@ export default function QuoteBuilderModal({
                     </div>
                 )}
 
+                {/* 2b. UNSAVED SESSION DRAFT RECOVERY BANNER */}
+                {isDraftRestored && (
+                    <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-2 text-amber-900 font-semibold">
+                            <span>💾</span>
+                            <span>Unsaved working quote draft restored from your active browser session.</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleDiscardDraft}
+                            className="text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer text-xs"
+                        >
+                            Discard Draft
+                        </button>
+                    </div>
+                )}
+
                 {/* 3. REVISION HISTORY PILLS (Section 12) */}
                 {quoteHistory.length > 0 && (
                     <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex items-center justify-between text-xs overflow-x-auto">
@@ -729,6 +921,86 @@ export default function QuoteBuilderModal({
 
                     {viewMode === 'builder' ? (
                         <>
+                            {/* ✨ AI Help Section (Advisory Only - Prompt 9.14 Phase 7) */}
+                            <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 transition">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                        <span className="text-base">✨</span>
+                                        <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                                            AI Help
+                                        </h3>
+                                        <span className="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-medium">
+                                            Advisory · Manager Decides Pricing
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAiHelpOpen(!aiHelpOpen)}
+                                        className="text-xs text-purple-700 hover:text-purple-950 font-semibold cursor-pointer"
+                                    >
+                                        {aiHelpOpen ? 'Hide' : 'Show'}
+                                    </button>
+                                </div>
+
+                                {aiHelpOpen && (
+                                    <div className="mt-3 pt-3 border-t border-purple-200/70 space-y-2.5 text-xs">
+                                        {aiHelpDisabled ? (
+                                            <div className="bg-slate-100 border border-slate-200 rounded-lg p-2.5 text-slate-600">
+                                                <span className="font-bold block text-slate-800">AI Help is Currently Off</span>
+                                                <span>AI Sales Assistant is turned off by CEO in System Settings.</span>
+                                            </div>
+                                        ) : loadingAiHelp ? (
+                                            <div className="text-purple-700 py-1">Loading AI suggestions...</div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                {/* 1. Customer wants */}
+                                                <div className="bg-white/80 border border-purple-100 rounded-lg p-2.5 space-y-1">
+                                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Customer wants:</span>
+                                                    <p className="text-slate-800 font-semibold">
+                                                        {travelers || lead.travelers || 1} people · {tripDuration || '3-day Varanasi trip'}
+                                                    </p>
+                                                    <p className="text-slate-600 text-[11px]">
+                                                        {aiQuoteHelp?.suggestedServices?.join(' + ') || 
+                                                            (lead.requirements ? Object.keys(lead.requirements).filter(k => lead.requirements[k]).join(' + ') : 'Hotel + Boat + Darshan')}
+                                                    </p>
+                                                </div>
+
+                                                {/* 2. Missing */}
+                                                <div className="bg-white/80 border border-purple-100 rounded-lg p-2.5 space-y-1">
+                                                    <span className="text-[10px] font-bold text-amber-800 uppercase block">Missing:</span>
+                                                    {aiQuoteHelp?.missingInputs && aiQuoteHelp.missingInputs.length > 0 ? (
+                                                        <ul className="text-slate-700 text-[11px] list-disc list-inside space-y-0.5">
+                                                            {aiQuoteHelp.missingInputs.map((m, idx) => (
+                                                                <li key={idx}>{m}</li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : (
+                                                        <p className="text-slate-600 text-[11px]">
+                                                            {!travelDate ? 'Travel date unconfirmed' : 'None — core details present'}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {/* 3. Suggested Question */}
+                                                <div className="bg-white/80 border border-purple-100 rounded-lg p-2.5 space-y-1">
+                                                    <span className="text-[10px] font-bold text-blue-800 uppercase block">Ask customer:</span>
+                                                    <p className="text-slate-700 text-[11px] italic">
+                                                        {aiQuoteHelp?.missingInputs?.includes('Travel Start Date') || !travelDate
+                                                            ? '"What are your exact travel dates for the trip?"'
+                                                            : (!lead.outsideDestinations
+                                                                ? '"What vehicle type do you prefer (Sedan / SUV / Tempo)?"'
+                                                                : '"Would you like airport/railway station pickup included?"')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <p className="text-[10px] text-purple-800/80">
+                                            💡 Manager remains responsible for vendor communication, current travel rates, selling price, discounts, and final quote.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* TOP 2-COLUMN SECTION: CUSTOMER / TRIP & QUOTE SUMMARY (Section 6) */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 
@@ -923,9 +1195,23 @@ export default function QuoteBuilderModal({
                                                             <Badge variant={badgeCfg.variant} size="sm">
                                                                 {badgeCfg.label}
                                                             </Badge>
+                                                            {(item.category === 'TRANSPORT' || model === COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED) && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                                                    🚗 Enter Current Vendor Rate
+                                                                </span>
+                                                            )}
+                                                            {validationErrors[idx] && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                                                                    ⚠️ {validationErrors[idx]}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <h5 className="text-sm font-bold text-slate-900 mt-1">
-                                                            {item.customerDisplayName || item.serviceName}
+                                                        <h5 className={`text-sm font-bold mt-1 ${validationErrors[idx] ? 'text-rose-600' : 'text-slate-900'}`}>
+                                                            {item.customerDisplayName || item.serviceName || (
+                                                                <span className="italic text-rose-500 underline decoration-wavy">
+                                                                    [Item name is required]
+                                                                </span>
+                                                            )}
                                                         </h5>
                                                         <div className="flex items-center space-x-2 text-xs text-slate-500 mt-0.5">
                                                             {item.vendorName && (
@@ -971,17 +1257,48 @@ export default function QuoteBuilderModal({
                                                 {/* EXPANDED EDITING CONTROLS */}
                                                 {isExpanded && (
                                                     <div className="pt-3 border-t border-slate-100 space-y-3 text-xs bg-slate-50/70 p-3 rounded-lg">
+                                                        {/* Prominent Vehicle Rate Guidance for Transport */}
+                                                        {(item.category === 'TRANSPORT' || model === COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED) && (
+                                                            <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-3 space-y-1.5">
+                                                                <div className="flex items-center space-x-1.5 text-amber-900 font-bold text-xs">
+                                                                    <span>🚗</span>
+                                                                    <span>Current Vehicle Rate — Vendor Quote Required</span>
+                                                                </div>
+                                                                <p className="text-[11px] text-amber-800 leading-relaxed">
+                                                                    Transport requires confirming today's live rate with the transport vendor. Reference rates are for orientation only; enter the current negotiated vehicle rate below as the customer selling price.
+                                                                </p>
+                                                            </div>
+                                                        )}
+
                                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                             <div className="sm:col-span-2">
-                                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                                                                    Customer Display Name
+                                                                <label className="block text-[10px] font-bold uppercase mb-1 flex items-center justify-between">
+                                                                    <span className={validationErrors[idx] ? "text-rose-600 font-black" : "text-slate-500"}>
+                                                                        Customer Display Name *
+                                                                    </span>
+                                                                    {validationErrors[idx] && (
+                                                                        <span className="text-rose-600 font-bold text-[10px] lowercase">
+                                                                            ⚠️ {validationErrors[idx]}
+                                                                        </span>
+                                                                    )}
                                                                 </label>
                                                                 <input
                                                                     type="text"
-                                                                    value={item.customerDisplayName || item.serviceName}
+                                                                    value={item.customerDisplayName || item.serviceName || ''}
+                                                                    placeholder="e.g., Luxury AC Sedan 8hr / Boat Ride"
                                                                     onChange={(e) => handleServiceChange(idx, 'customerDisplayName', e.target.value)}
-                                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-blue-500"
+                                                                    className={`w-full bg-white border rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-blue-500 ${
+                                                                        validationErrors[idx]
+                                                                            ? 'border-rose-500 bg-rose-50/50 ring-1 ring-rose-400'
+                                                                            : 'border-slate-300'
+                                                                    }`}
                                                                 />
+                                                                {validationErrors[idx] && (
+                                                                    <p className="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1">
+                                                                        <span>⚠️</span>
+                                                                        <span>{validationErrors[idx]}</span>
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                             <div>
                                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
@@ -1017,7 +1334,9 @@ export default function QuoteBuilderModal({
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
                                                                 <div>
                                                                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                                                                        Customer Selling Price per {item.unit || 'Unit'} (₹)
+                                                                        {(item.category === 'TRANSPORT' || model === COMMERCIAL_MODELS.VENDOR_QUOTE_REQUIRED)
+                                                                            ? 'Enter Current Vendor Rate / Customer Price (₹)'
+                                                                            : `Customer Selling Price per ${item.unit || 'Unit'} (₹)`}
                                                                     </label>
                                                                     <input
                                                                         type="number"
@@ -1136,7 +1455,7 @@ export default function QuoteBuilderModal({
                                             Official Travel Proposal
                                         </span>
                                         <h3 className="text-xl font-bold text-slate-900 mt-0.5">
-                                            VARANASI YATRA
+                                            KASHI-VASHI
                                         </h3>
                                         <p className="text-xs text-slate-500">Premium Pilgrimage & Destination Experience</p>
                                     </div>
@@ -1207,7 +1526,7 @@ export default function QuoteBuilderModal({
 
                                 <div className="text-xs text-slate-500 border-t border-slate-200 pt-3">
                                     <p><strong>Terms:</strong> {termsNotes}</p>
-                                    <p className="mt-1">For support & booking: 📞 +91 84005 54029 · 💬 +91 81497 83494 · info.varanasi.yatra@gmail.com · https://varanasiyatra.com</p>
+                                    <p className="mt-1">For support & booking: 📞 {DISPLAY_PHONE} · 💬 {DISPLAY_WHATSAPP} · {EMAIL} · {WEBSITE_URL}</p>
                                 </div>
                             </div>
                         </div>

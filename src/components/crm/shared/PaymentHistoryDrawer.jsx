@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { crmApi } from '../../../services/crmApi';
+import { formatSafeDate, safeDateToISOString } from '../../../utils/dateUtils';
 import { TableContainer, Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '../ui/Table';
 import StatusBadge from '../ui/StatusBadge';
 import Button from '../ui/Button';
@@ -69,7 +70,7 @@ export default function PaymentHistoryDrawer({
                 setPayments([{
                     amount: totalPaid,
                     paymentMethod: record?.paymentMode || 'Advance',
-                    paymentDate: record?.createdAt || new Date().toISOString(),
+                    paymentDate: safeDateToISOString(record?.createdAt || new Date()),
                     referenceNumber: record?.transactionId || 'Verified Booking Advance',
                     notes: 'Initial advance deposit'
                 }]);
@@ -214,13 +215,7 @@ export default function PaymentHistoryDrawer({
                                     <TableBody>
                                         {payments.map((p, idx) => {
                                             const pDate = p.paymentDate || p.createdAt;
-                                            const dateFormatted = pDate
-                                                ? new Date(pDate).toLocaleDateString('en-IN', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    year: 'numeric'
-                                                })
-                                                : '—';
+                                            const dateFormatted = formatSafeDate(pDate);
 
                                             return (
                                                 <TableRow key={p._id || `tx-${idx}`}>
@@ -229,7 +224,14 @@ export default function PaymentHistoryDrawer({
                                                             {dateFormatted}
                                                         </span>
                                                         <span className="text-[10px] text-slate-400">
-                                                            {pDate ? new Date(pDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                            {(() => {
+                                                                try {
+                                                                    const d = pDate ? new Date(pDate) : null;
+                                                                    return (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+                                                                } catch {
+                                                                    return '';
+                                                                }
+                                                            })()}
                                                         </span>
                                                     </TableCell>
                                                     <TableCell>

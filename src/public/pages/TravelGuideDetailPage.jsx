@@ -42,7 +42,7 @@ export default function TravelGuideDetailPage() {
     return (
         <>
             <SEO
-                title={`${title} | Varanasi Yatra`}
+                title={`${title} | Kashi-Vashi`}
                 description={excerpt}
                 pathname={`/travel-guide/${slug}`}
                 image={image}
@@ -54,11 +54,11 @@ export default function TravelGuideDetailPage() {
                     image,
                     author: {
                         '@type': 'Organization',
-                        name: 'Varanasi Yatra Local Editorial Desk'
+                        name: 'Kashi-Vashi Local Editorial Desk'
                     },
                     publisher: {
                         '@type': 'Organization',
-                        name: 'Varanasi Yatra',
+                        name: 'Kashi-Vashi',
                         logo: {
                             '@type': 'ImageObject',
                             url: 'https://varanasiyatra.com/assets/logo.png'

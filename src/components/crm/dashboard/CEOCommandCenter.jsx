@@ -266,7 +266,7 @@ export default function CEOCommandCenter({
                         <span>Executive Pulse — Instant Business Answers</span>
                     </span>
                     <span className="text-[11px] text-blue-200">
-                        Liquid Cash: <strong className="text-emerald-300">₹{(Number(dashData?.netCashPosition) || 0).toLocaleString('en-IN')}</strong>
+                        Bank & Cash Balance: <strong className="text-emerald-300">₹{(Number(dashData?.netCashPosition) || 0).toLocaleString('en-IN')}</strong>
                     </span>
                 </div>
 
@@ -295,7 +295,7 @@ export default function CEOCommandCenter({
             </div>
 
             {/* TOP-LEVEL 6 KPI CARDS */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
                 {/* 1. Total Bookings */}
                 <KPICard
                     title="Total Bookings"
@@ -355,7 +355,7 @@ export default function CEOCommandCenter({
                     period="Recent Timeline"
                 />
                 <TrendCurve
-                    title="Booking Velocity Trajectory"
+                    title="Booking Growth"
                     subtitle="Chronological traveler booking confirmations"
                     data={trendIntelligence.bookingsSeries}
                     formatter={(v) => `${v} Bookings`}
@@ -443,10 +443,10 @@ export default function CEOCommandCenter({
                     </div>
                 </Card>
 
-                {/* 2. OPERATIONAL RISK RADAR */}
+                {/* 2. URGENT ALERTS */}
                 <Card>
                     <CardHeader
-                        title="Operational Risk Radar"
+                        title="Urgent Alerts"
                         subtitle="Exceptions requiring immediate executive intervention"
                     />
                     <div className="p-4 space-y-3">

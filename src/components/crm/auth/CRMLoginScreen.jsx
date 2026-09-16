@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { crmApi, tokenStorage } from '../../../services/crmApi';
 import logo from '../../../assets/logo.png';
-import assiMorningImg from '../../../assets/ExperienceVaranasi/AssiMorning.png';
-import gangaAartiImg from '../../../assets/ExperienceVaranasi/GangaAarti.png';
+import assiMorningImg from '../../../assets/ExperienceVaranasi/AssiMorning.avif';
+import gangaAartiImg from '../../../assets/ExperienceVaranasi/GangaAarti.avif';
 
 /**
  * Split-Screen CRM Login Experience
@@ -171,15 +171,16 @@ export default function CRMLoginScreen({ onLoginSuccess }) {
                     {/* Top Branding */}
                     <div className="relative z-10 space-y-4">
                         <div className="flex items-center space-x-3.5">
-                            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center p-2 shadow-lg shrink-0">
-                                <img src={logo} alt="Varanasi Yatra Logo" className="w-full h-full object-contain" />
+                            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center p-1.5 shadow-lg shrink-0">
+                                <img src={logo} alt="Kashi-Vashi Logo" className="w-full h-full object-contain drop-shadow" />
                             </div>
                             <div>
-                                <h1 className="font-serif text-xl md:text-2xl font-black tracking-wider text-amber-100 uppercase leading-none">
-                                    Varanasi Yatra
+                                <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-1.5 leading-none">
+                                    <span className="font-hindi font-bold text-amber-300">काशी</span>
+                                    <span className="font-serif font-bold text-amber-100">Vashi</span>
                                 </h1>
-                                <p className="text-[11px] text-amber-400 font-bold tracking-widest uppercase mt-1">
-                                    Operations & Command Suite
+                                <p className="text-[10px] text-amber-300/90 font-medium tracking-wider uppercase mt-1 font-serif">
+                                    Spiritual &amp; Heritage Journeys
                                 </p>
                             </div>
                         </div>

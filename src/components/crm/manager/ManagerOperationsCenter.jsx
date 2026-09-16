@@ -42,7 +42,7 @@ export default function ManagerOperationsCenter({
     return (
         <>
             <DashboardHeader
-                title="Varanasi Yatra Operations Console"
+                title="Kashi-Vashi Operations Console"
                 subtitle="Manager Operations & Daily Dispatch Activity Control Panel"
                 onAddLead={onAddLead}
                 onSync={onSync}

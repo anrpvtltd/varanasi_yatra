@@ -1,7 +1,7 @@
 const { validateEnvironment } = require('../config/env');
 
 console.log('========================================================================');
-console.log('VARANASI YATRA TRAVEL OS — PRODUCTION PREFLIGHT REPORT');
+console.log('KASHI-VASHI TRAVEL OS — PRODUCTION PREFLIGHT REPORT');
 console.log('========================================================================\n');
 
 let passCount = 0;

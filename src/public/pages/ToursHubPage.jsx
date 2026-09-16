@@ -10,8 +10,8 @@ export default function ToursHubPage() {
     return (
         <>
             <SEO
-                title="Varanasi Tour Packages & Spiritual Circuits | Varanasi Yatra"
-                description="Browse handpicked Varanasi tour itineraries: 1-Day Kashi Darshan, 2-Day Varanasi & Sarnath, 3-Day Custom Circuit, and day excursions to Ayodhya & Bodh Gaya."
+                title="Varanasi Tour Packages & Spiritual Circuits | Kashi-Vashi"
+                description="Custom spiritual tours and pilgrimage packages in Varanasi. Darshan packages, boat cruises, Sarnath day trips, and Buddhist circuit journeys."
                 pathname="/tours"
             />
 

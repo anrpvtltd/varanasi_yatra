@@ -4,6 +4,8 @@ import StatusBadge from '../ui/StatusBadge';
 import Button from '../ui/Button';
 import Input, { Select } from '../ui/Input';
 import Card from '../ui/Card';
+import AISalesAssistantPanel from './AISalesAssistantPanel';
+import { safeDateOnly } from '../../../utils/dateUtils';
 
 /**
  * Modernized Lead Profile Drawer
@@ -15,7 +17,8 @@ export default function LeadProfileDrawer({
     handleInputChange,
     handleSaveChanges,
     isSaving,
-    user: _user,
+    user,
+    token,
     onOpenQuoteBuilder
 }) {
     if (!selectedLead) return null;
@@ -43,7 +46,7 @@ export default function LeadProfileDrawer({
         if (!selectedLead.mobile) return;
         const cleanNumber = selectedLead.mobile.replace(/[^0-9]/g, '');
         const fullNumber = cleanNumber.length === 10 ? `91${cleanNumber}` : cleanNumber;
-        const text = encodeURIComponent(`Namaste ${selectedLead.name} Ji! Thank you for contacting Varanasi Yatra. Regarding your travel enquiry for ${selectedLead.destination || 'Varanasi'}, how may we assist you today?`);
+        const text = encodeURIComponent(`Namaste ${selectedLead.name} Ji! Thank you for contacting Kashi-Vashi. Regarding your travel enquiry for ${selectedLead.destination || 'Varanasi'}, how may we assist you today?`);
         window.open(`https://wa.me/${fullNumber}?text=${text}`, '_blank');
     };
 
@@ -54,12 +57,10 @@ export default function LeadProfileDrawer({
 
     const handleEmailClick = () => {
         if (!selectedLead.email) return;
-        window.open(`mailto:${selectedLead.email}?subject=${encodeURIComponent(`Varanasi Yatra Travel Enquiry - ${selectedLead.name}`)}`, '_self');
+        window.open(`mailto:${selectedLead.email}?subject=${encodeURIComponent(`Kashi-Vashi Travel Enquiry - ${selectedLead.name}`)}`, '_self');
     };
 
-    const travelDateFormatted = selectedLead.date
-        ? new Date(selectedLead.date).toISOString().split('T')[0]
-        : '';
+    const travelDateFormatted = safeDateOnly(selectedLead.date, '');
 
     const reqServices = [
         { id: 'hotel', label: 'Hotel Stay', icon: '🏨' },
@@ -135,7 +136,7 @@ export default function LeadProfileDrawer({
                         </div>
                         <div>
                             <h3 className="text-sm font-bold text-slate-900 leading-snug">{selectedLead.name}</h3>
-                            <p className="text-xs text-slate-500">{selectedLead.city || selectedLead.destination || 'Varanasi Yatra Enquirer'}</p>
+                            <p className="text-xs text-slate-500">{selectedLead.city || selectedLead.destination || 'Kashi-Vashi Enquirer'}</p>
                         </div>
                     </div>
 
@@ -175,66 +176,263 @@ export default function LeadProfileDrawer({
                     </div>
                 </div>
 
-                {/* 2. SECTION: CUSTOMER DETAILS */}
-                <Card
-                    title="Customer Information"
-                    subtitle="Primary contact details and origin source"
-                    headerAction={
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                            Source: {selectedLead.leadSource || 'Website'}
-                        </span>
-                    }
-                >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <Input
-                            label="Customer Full Name"
-                            name="name"
-                            value={selectedLead.name || ''}
-                            onChange={handleInputChange}
-                            required
-                        />
-                        <Input
-                            label="Mobile Number"
-                            name="mobile"
-                            value={selectedLead.mobile || ''}
-                            onChange={handleInputChange}
-                            required
-                        />
-                        <Input
-                            label="Email Address"
-                            name="email"
-                            type="email"
-                            value={selectedLead.email || ''}
-                            onChange={handleInputChange}
-                            placeholder="customer@email.com"
-                        />
-                        <Select
-                            label="Lead Source"
-                            name="leadSource"
-                            value={selectedLead.leadSource || (selectedLead.source === 'HOTEL_QR' ? 'QR' : 'Website')}
-                            onChange={handleInputChange}
-                            options={[
-                                { value: 'Website', label: '🌐 Website Direct' },
-                                { value: 'QR', label: '📱 QR Code Scan' },
-                                { value: 'Offline/Manual', label: '📞 Offline / Direct Call' }
-                            ]}
-                        />
+                {/* 🤖 AI SALES ASSISTANT (Prompt 7) */}
+                <AISalesAssistantPanel
+                    lead={selectedLead}
+                    token={token || (typeof localStorage !== 'undefined' ? localStorage.getItem('admin_token') : '')}
+                    user={user}
+                    onOpenQuoteBuilder={onOpenQuoteBuilder}
+                    onLeadUpdated={(updated) => setSelectedLead && setSelectedLead(prev => ({ ...prev, ...updated }))}
+                />
 
-                        {/* Attribution Info Box if Hotel QR or Partner */}
-                        {(selectedLead.source === 'HOTEL_QR' || selectedLead.partnerName) && (
-                            <div className="col-span-full bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs">
-                                <div>
-                                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">🏨 Hotel Partner Acquisition</span>
-                                    <span className="font-bold text-stone-900 text-sm">{selectedLead.partnerName || selectedLead.partnerId}</span>
-                                    {selectedLead.qrId && <span className="text-stone-500 text-[11px] ml-2 font-mono">({selectedLead.qrId})</span>}
-                                </div>
-                                {selectedLead.landingPath && (
-                                    <span className="text-[11px] text-stone-500 font-mono mt-1 sm:mt-0">
-                                        Landing: {selectedLead.landingPath}
-                                    </span>
+                {/* 2. SECTION: CUSTOMER DETAILS */}
+                {(() => {
+                    const isQrLead = selectedLead.source === 'AREA_QR' ||
+                        selectedLead.source === 'HOTEL_QR' ||
+                        selectedLead.leadSource === 'QR' ||
+                        Boolean(selectedLead.qrId) ||
+                        Boolean(selectedLead.qrAttribution) ||
+                        Boolean(selectedLead.partnerName);
+
+                    const isHotelQr = isQrLead && (selectedLead.source === 'HOTEL_QR' || Boolean(selectedLead.partnerName) || (selectedLead.leadSource === 'QR' && Boolean(selectedLead.partnerId)));
+                    const resolvedQrId = selectedLead.qrId || selectedLead.qrAttribution?.qrId || '';
+                    const resolvedArea = selectedLead.areaName || selectedLead.qrAttribution?.areaName || '';
+                    const resolvedPlacement = selectedLead.placementName || selectedLead.venueName || selectedLead.city || selectedLead.pickup || selectedLead.destination || 'Varanasi';
+                    const resolvedPartner = selectedLead.partnerName || selectedLead.partnerId || '';
+
+                    return (
+                        <Card
+                            title="Customer Information"
+                            subtitle="Primary contact details and origin source"
+                            headerAction={
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                                    isQrLead
+                                        ? 'bg-orange-100 text-orange-800 border-orange-200'
+                                        : (selectedLead.leadSource === 'Offline/Manual' || selectedLead.source === 'OFFLINE'
+                                            ? 'bg-purple-100 text-purple-800 border-purple-200'
+                                            : (selectedLead.leadSource === 'AI_HUNTER'
+                                                ? 'bg-cyan-100 text-cyan-800 border-cyan-200'
+                                                : 'bg-slate-100 text-slate-600 border-slate-200'))
+                                }`}>
+                                    Source: {isQrLead ? `QR${resolvedArea ? ` • ${resolvedArea}` : (resolvedPartner ? ` • ${resolvedPartner}` : '')}` : (selectedLead.leadSource || 'Website Direct')}
+                                </span>
+                            }
+                        >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <Input
+                                    label="Customer Full Name"
+                                    name="name"
+                                    value={selectedLead.name || ''}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                                <Input
+                                    label="Mobile Number"
+                                    name="mobile"
+                                    value={selectedLead.mobile || ''}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                                <Input
+                                    label="Email Address"
+                                    name="email"
+                                    type="email"
+                                    value={selectedLead.email || ''}
+                                    onChange={handleInputChange}
+                                    placeholder="customer@email.com"
+                                />
+                                <Select
+                                    label="Lead Source"
+                                    name="leadSource"
+                                    value={isQrLead ? 'QR' : (selectedLead.leadSource || (selectedLead.source === 'OFFLINE' ? 'Offline/Manual' : 'Website'))}
+                                    onChange={handleInputChange}
+                                    options={[
+                                        { value: 'Website', label: '🌐 Website Direct' },
+                                        { value: 'QR', label: '📱 QR Code Scan' },
+                                        { value: 'Offline/Manual', label: '📞 Offline / Direct Call' }
+                                    ]}
+                                />
+
+                                {/* Attribution Info Box if Hotel QR */}
+                                {isHotelQr && (
+                                    <div className="col-span-full bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 text-xs space-y-1.5">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 pb-1.5">
+                                            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider flex items-center gap-1">
+                                                <span>🏨</span>
+                                                <span>QR Attribution — Hotel Partner</span>
+                                            </span>
+                                            <span className="font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded text-[10px] border border-amber-300/60">
+                                                Source: QR
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px]">
+                                            <div>
+                                                <span className="text-stone-400 block text-[10px] font-semibold uppercase">Partner / Hotel</span>
+                                                <span className="font-bold text-stone-900">{resolvedPartner || 'Partner'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-stone-400 block text-[10px] font-semibold uppercase">QR ID</span>
+                                                <span className="font-mono font-bold text-stone-800">{resolvedQrId || 'Assigned Token'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-stone-400 block text-[10px] font-semibold uppercase">Placement</span>
+                                                <span className="font-semibold text-stone-800">{resolvedPlacement}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Attribution Info Box if Area QR */}
+                                {isQrLead && !isHotelQr && (
+                                    <div className="col-span-full bg-orange-50/90 border border-orange-200 rounded-xl p-3.5 text-xs space-y-1.5">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-orange-200/60 pb-1.5">
+                                            <span className="text-[10px] uppercase font-bold text-orange-800 tracking-wider flex items-center gap-1">
+                                                <span>📱</span>
+                                                <span>QR Attribution</span>
+                                            </span>
+                                            <span className="font-bold text-orange-900 bg-orange-100/80 px-2 py-0.5 rounded text-[10px] border border-orange-300/60">
+                                                Source: QR
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px]">
+                                            <div>
+                                                <span className="text-stone-400 block text-[10px] font-semibold uppercase">Area</span>
+                                                <span className="font-bold text-stone-900">{resolvedArea || 'Varanasi Area'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-stone-400 block text-[10px] font-semibold uppercase">QR ID</span>
+                                                <span className="font-mono font-bold text-stone-800">{resolvedQrId || 'Assigned Token'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-stone-400 block text-[10px] font-semibold uppercase">Placement</span>
+                                                <span className="font-semibold text-stone-800">{resolvedPlacement}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-                        )}
+                        </Card>
+                    );
+                })()}
+
+                {/* 🤖 AI HUNTER PROSPECT INTELLIGENCE (For Hunter-Sourced Leads) */}
+                {(selectedLead.leadSource === 'AI_HUNTER' || selectedLead.aiHunter || selectedLead.opportunityId) && (
+                    <Card
+                        title="AI Hunter Prospect Intelligence"
+                        subtitle="Public intent signal verified genuine by CEO for operational contact"
+                        headerAction={
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 border border-cyan-300">
+                                CEO Verified Genuine
+                            </span>
+                        }
+                    >
+                        <div className="space-y-3 text-xs">
+                            <div className="p-3 bg-cyan-50/70 border border-cyan-200 rounded-xl">
+                                <span className="text-[10px] uppercase font-bold text-cyan-900 tracking-wider block">Why Prospect / Detected Need</span>
+                                <p className="text-stone-800 mt-1 leading-relaxed">
+                                    {selectedLead.specialRequirements || selectedLead.hunterIntent || 'Public signal identified active Varanasi pilgrimage & travel intent.'}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <span className="text-[10px] uppercase font-semibold text-stone-500 block">Intent Mode</span>
+                                    <span className="font-bold text-stone-800 text-xs">
+                                        {selectedLead.hunterMode === 'AI_LOCAL' ? '📍 In-Destination (Local)' : '✈️ Upcoming Trip (Outside)'}
+                                    </span>
+                                </div>
+                                <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <span className="text-[10px] uppercase font-semibold text-stone-500 block">Travel Window</span>
+                                    <span className="font-bold text-stone-800 text-xs">
+                                        {selectedLead.date || selectedLead.travelWindow || 'Flexible'}
+                                    </span>
+                                </div>
+                                <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <span className="text-[10px] uppercase font-semibold text-stone-500 block">Confidence</span>
+                                    <span className="font-bold text-cyan-700 text-xs">
+                                        {selectedLead.hunterConfidence ? `${Math.round(selectedLead.hunterConfidence * 100)}%` : 'High'}
+                                    </span>
+                                </div>
+                                <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <span className="text-[10px] uppercase font-semibold text-stone-500 block">Qualification</span>
+                                    <span className="font-bold text-indigo-700 text-xs">
+                                        {selectedLead.hunterQualificationScore ? `${selectedLead.hunterQualificationScore}/100` : 'Qualified'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg flex items-start gap-2">
+                                <span className="text-base">📋</span>
+                                <div>
+                                    <span className="font-bold text-amber-900 block text-[11px]">Manager Operational Guidance</span>
+                                    <p className="text-amber-800 text-[11px] mt-0.5 leading-normal">
+                                        Contact prospect via phone/WhatsApp, confirm room &amp; vehicle requirement, and prepare customized quote. AI confidence is advisory—Manager remains the commercial decision-maker.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                )}
+
+                {/* 2b. SECTION: PIPELINE STATUS & FOLLOW-UP SCHEDULING */}
+                <Card
+                    title="Pipeline Status & Follow-Up Scheduling"
+                    subtitle="Track customer lifecycle stage and schedule upcoming touchpoints"
+                    headerAction={
+                        selectedLead.followUpId ? (
+                            <span className="font-mono text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                Ref: {selectedLead.followUpId}
+                            </span>
+                        ) : null
+                    }
+                >
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <Select
+                            label="Pipeline Stage"
+                            name="status"
+                            value={selectedLead.status || 'Pending'}
+                            onChange={handleInputChange}
+                        >
+                            <option value="Pending">Pending (New Enquiry)</option>
+                            <option value="In-Progress">In-Progress (Active Lead)</option>
+                            <option value="Confirmed">Confirmed (Booked)</option>
+                            <option value="Trip Started">Trip Started (On Tour)</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </Select>
+
+                        <Input
+                            label="Follow-Up Date"
+                            type="date"
+                            name="followUpDate"
+                            value={safeDateOnly(selectedLead.followUpDate, '')}
+                            onChange={handleInputChange}
+                            helperText={selectedLead.followUpDate ? 'Follow-up scheduled' : 'Set date to schedule follow-up'}
+                        />
+
+                        <Select
+                            label="Follow-Up Time Window"
+                            name="followUpTime"
+                            value={selectedLead.followUpTime || ''}
+                            onChange={handleInputChange}
+                        >
+                            <option value="">Select time window...</option>
+                            <option value="Morning (10:00 AM - 12:00 PM)">Morning (10:00 AM - 12:00 PM)</option>
+                            <option value="Afternoon (12:00 PM - 03:00 PM)">Afternoon (12:00 PM - 03:00 PM)</option>
+                            <option value="Evening (03:00 PM - 06:00 PM)">Evening (03:00 PM - 06:00 PM)</option>
+                            <option value="Night (06:00 PM - 08:00 PM)">Night (06:00 PM - 08:00 PM)</option>
+                        </Select>
+                    </div>
+
+                    <div className="pt-2">
+                        <Input
+                            label="Follow-Up Remarks / Action Notes"
+                            name="remarks"
+                            value={selectedLead.remarks || ''}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Follow up on finalized quote, confirm arrival train number and hotel preference"
+                            helperText="Saving a scheduled follow-up automatically provisions a deterministic KV-F record sequence."
+                        />
                     </div>
                 </Card>
 
@@ -248,7 +446,7 @@ export default function LeadProfileDrawer({
                             label="Travel Date"
                             type="date"
                             name="date"
-                            min={new Date().toISOString().split('T')[0]}
+                            min={safeDateOnly(new Date())}
                             value={travelDateFormatted}
                             onChange={handleInputChange}
                         />

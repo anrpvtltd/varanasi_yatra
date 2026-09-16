@@ -10,8 +10,8 @@ export default function DestinationsHubPage() {
     return (
         <>
             <SEO
-                title="Destinations & Sacred Circuits | Varanasi, Sarnath & Beyond | Varanasi Yatra"
-                description="Explore Varanasi (Kashi), Sarnath, Ayodhya Ji, and Bodh Gaya. Comprehensive local destination guides, key sacred sites, and ideal travel seasons."
+                title="Destinations & Sacred Circuits | Varanasi, Sarnath & Beyond | Kashi-Vashi"
+                description="Explore the sacred destinations within and around Varanasi. In-depth guides to Varanasi, Sarnath Buddhist site, and excursions to Ayodhya and Bodh Gaya."
                 pathname="/destinations"
             />
 

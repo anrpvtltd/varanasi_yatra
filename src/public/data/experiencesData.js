@@ -1,6 +1,6 @@
-import aartiImg from '../../assets/ExperienceVaranasi/GangaAarti.png';
-import assiImg from '../../assets/ExperienceVaranasi/AssiMorning.png';
-import kashiImg from '../../assets/ExperienceVaranasi/KashiVT.png';
+import aartiImg from '../../assets/ExperienceVaranasi/GangaAarti.avif';
+import assiImg from '../../assets/ExperienceVaranasi/AssiMorning.avif';
+import kashiImg from '../../assets/ExperienceVaranasi/KashiVT.avif';
 import sarnathImg from '../../assets/ExperienceVaranasi/sarnathStupa.png';
 
 export const EXPERIENCES = [

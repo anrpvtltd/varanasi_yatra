@@ -1,12 +1,12 @@
 /**
- * HTML/SVG template builders for all 7 Varanasi Yatra business document types
+ * HTML/SVG template builders for all 7 Kashi-Vashi business document types
  */
 
 const BRAND_HEADER = `
 <div style="background-gradient: linear-gradient(135deg, #0f172a, #1e293b); padding: 24px; border-radius: 12px; margin-bottom: 24px; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <h1 style="margin: 0; color: #f97316; font-size: 26px; font-weight: 800; letter-spacing: 1px;">VARANASI YATRA</h1>
+            <h1 style="margin: 0; color: #f97316; font-size: 26px; font-weight: 800; letter-spacing: 1px;">KASHI-VASHI</h1>
             <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 12px; font-style: italic;">Your Journey Begins with Trust 🚩</p>
         </div>
         <div style="text-align: right; color: #cbd5e1; font-size: 11px; line-height: 1.5;">
@@ -20,10 +20,10 @@ const BRAND_HEADER = `
 
 const FOOTER_NOTE = `
 <div style="margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 10px; font-family: sans-serif; line-height: 1.6;">
-    <div style="font-weight: 700; color: #334155; margin-bottom: 4px;">Varanasi Yatra · Authentic Pilgrimages & Custom Tours</div>
+    <div style="font-weight: 700; color: #334155; margin-bottom: 4px;">Kashi-Vashi · Authentic Pilgrimages & Custom Tours</div>
     <div>Phone: +91 84005 54029 · WhatsApp: +91 81497 83494 · Email: info.varanasi.yatra@gmail.com</div>
     <div>Instagram: @info.varanasi.yatra · Website: https://varanasiyatra.com</div>
-    <div style="margin-top: 6px; font-size: 9px; color: #94a3b8;">Computer Generated Official Document — Varanasi Yatra Travel OS</div>
+    <div style="margin-top: 6px; font-size: 9px; color: #94a3b8;">Computer Generated Official Document — Kashi-Vashi Travel OS</div>
 </div>
 `;
 
@@ -97,7 +97,7 @@ function buildBookingConfirmationTemplate(data) {
                 </tr>
                 <tr style="border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 8px; font-weight: bold;">Package Name:</td>
-                    <td style="padding: 8px;">${b.packageName || 'Varanasi Yatra'}</td>
+                    <td style="padding: 8px;">${b.packageName || 'Kashi-Vashi'}</td>
                     <td style="padding: 8px; font-weight: bold;">Travel Date:</td>
                     <td style="padding: 8px;">${b.tripDate || 'Confirmed Date'}</td>
                 </tr>
@@ -280,7 +280,7 @@ function buildCustomerInvoiceTemplate(data) {
                 </thead>
                 <tbody>
                     <tr style="border-bottom: 1px solid #e2e8f0;">
-                        <td style="padding: 10px;">${inv.packageName || 'Varanasi Yatra Customized Spiritual Tour Package'}</td>
+                        <td style="padding: 10px;">${inv.packageName || 'Kashi-Vashi Customized Spiritual Tour Package'}</td>
                         <td style="padding: 10px; text-align: right;">1</td>
                         <td style="padding: 10px; text-align: right;">₹${Number(inv.totalAmount || 0).toLocaleString('en-IN')}</td>
                     </tr>

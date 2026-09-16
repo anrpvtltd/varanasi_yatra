@@ -3,8 +3,8 @@ const BASE_DOMAIN = 'https://varanasiyatra.com';
 export const buildOrganizationSchema = () => ({
     "@context": "https://schema.org",
     "@type": "TravelAgency",
-    "name": "Varanasi Yatra",
-    "alternateName": ["BANARAS YATRA Travel & Tours", "Varanasi Yatra Travel & Tours"],
+    "name": "Kashi-Vashi",
+    "alternateName": ["Kashi-Vashi Travel & Tours", "Kashi Vashi"],
     "url": BASE_DOMAIN,
     "logo": `${BASE_DOMAIN}/logo.png`,
     "description": "Premier spiritual pilgrimage and customized tour operator in Varanasi, providing verified hotels near the ghats, private river boat cruises, Kashi Vishwanath darshan assistance, and private transport.",

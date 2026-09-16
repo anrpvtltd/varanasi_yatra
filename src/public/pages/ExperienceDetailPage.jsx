@@ -38,7 +38,7 @@ export default function ExperienceDetailPage() {
     return (
         <>
             <SEO
-                title={`${title} | Varanasi Yatra`}
+                title={`${title} | Kashi-Vashi`}
                 description={shortDesc}
                 pathname={`/experiences/${slug}`}
                 image={image}

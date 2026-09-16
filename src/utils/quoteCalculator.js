@@ -1,4 +1,5 @@
 import { DEFAULT_MARGIN_CONFIG, COMMERCIAL_MODELS } from '../constants/phase4Constants.js';
+import { DISPLAY_PHONE, DISPLAY_WHATSAPP, EMAIL, INSTAGRAM_HANDLE, WEBSITE_URL } from '../shared/config/brand.js';
 
 /**
  * Computes live financial breakdown for Quote Builder supporting finalized Commercial Models:
@@ -228,7 +229,7 @@ export function formatWhatsAppQuoteText(quote, lead) {
         return `✓ ${name}${suffix}`;
     }).join('\n');
 
-    return `*VARANASI YATRA — TRAVEL ITINERARY & QUOTE* 🚩
+    return `*KASHI-VASHI — TRAVEL ITINERARY & QUOTE* 🚩
     
 Hello *${customerName}*,
 
@@ -249,6 +250,6 @@ ${itemsStr || '✓ Complete Customized Itinerary Services'}
 • Verified Heritage Hotels & Drivers
 • Fast-Track VIP Kashi Vishwanath Darshan
 
-Reply *YES* to lock your dates, WhatsApp us at 💬 +91 81497 83494, or call 📞 +91 84005 54029.
-Email: info.varanasi.yatra@gmail.com | https://varanasiyatra.com | Instagram: @info.varanasi.yatra`;
+Reply *YES* to lock your dates, WhatsApp us at 💬 ${DISPLAY_WHATSAPP}, or call 📞 ${DISPLAY_PHONE}.
+Email: ${EMAIL} | ${WEBSITE_URL} | Instagram: ${INSTAGRAM_HANDLE}`;
 }

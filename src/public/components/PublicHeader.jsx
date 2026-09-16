@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 import { trackWhatsAppClick } from '../utils/analytics';
+import { DISPLAY_PHONE, PHONE_URL, DISPLAY_WHATSAPP, WHATSAPP_URL } from '../../shared/config/brand';
 
 export default function PublicHeader() {
     const [isOpen, setIsOpen] = useState(false);
@@ -24,13 +25,21 @@ export default function PublicHeader() {
         };
     }, [isOpen]);
 
-    const navLinks = [
+    const desktopNavLinks = [
+        { name: 'Experiences', href: '/experiences' },
+        { name: 'Tours', href: '/tours' },
+        { name: 'Destinations', href: '/destinations' },
+        { name: 'Travel Guide', href: '/travel-guide' },
+        { name: 'About', href: '/about' }
+    ];
+
+    const mobileNavLinks = [
         { name: 'Experiences', href: '/experiences' },
         { name: 'Tours', href: '/tours' },
         { name: 'Destinations', href: '/destinations' },
         { name: 'Hotels', href: '/hotels' },
         { name: 'Travel Guide', href: '/travel-guide' },
-        { name: 'About Us', href: '/about' },
+        { name: 'About', href: '/about' },
         { name: 'Contact', href: '/contact' }
     ];
 
@@ -43,32 +52,37 @@ export default function PublicHeader() {
         <header className="bg-stone-950 text-white sticky top-0 z-50 border-b border-stone-900 shadow-md">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
 
-                {/* Left Side: Logo & Brand Standardization (Varanasi Yatra, NOT an H1) */}
-                <Link to="/" className="flex items-center space-x-3 group" aria-label="Varanasi Yatra Home">
+                {/* Left Side: Logo & Brand Standardization (Kashi-Vashi, NOT an H1) */}
+                <Link to="/" className="flex items-center space-x-3 group shrink-0" aria-label="Kashi-Vashi — Spiritual & Heritage Journeys">
                     <img
                         src={logoImg}
-                        alt="Varanasi Yatra Emblem"
-                        className="w-9 h-9 object-contain flex-shrink-0 group-hover:scale-105 transition-transform"
+                        alt="Kashi-Vashi Emblem"
+                        className="w-10 h-10 object-contain flex-shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm"
                     />
                     <div>
-                        <span className="text-base font-serif font-black tracking-wider text-white uppercase leading-none block">
-                            Varanasi Yatra
-                        </span>
-                        <span className="text-[9px] uppercase font-bold tracking-widest text-amber-500 block mt-0.5">
-                            Spiritual & Heritage Journeys
+                        <div className="flex items-baseline space-x-1.5">
+                            <span className="text-lg font-hindi font-bold text-brand-saffron leading-none">
+                                काशी
+                            </span>
+                            <span className="text-lg font-serif font-bold tracking-tight text-white leading-none">
+                                Vashi
+                            </span>
+                        </div>
+                        <span className="text-[9.5px] uppercase font-serif font-normal tracking-widest text-amber-300/90 block mt-0.5 whitespace-nowrap">
+                            Spiritual &amp; Heritage Journeys
                         </span>
                     </div>
                 </Link>
 
-                {/* Center: Desktop Navigation Links */}
-                <nav className="hidden lg:flex items-center space-x-6 text-xs font-bold uppercase tracking-wider text-stone-300">
-                    {navLinks.map((item) => {
+                {/* Center: Desktop Navigation Links (5 Primary Links: Experiences, Tours, Destinations, Travel Guide, About) */}
+                <nav className="hidden lg:flex items-center space-x-4 xl:space-x-6 text-xs font-bold uppercase tracking-wider text-stone-300">
+                    {desktopNavLinks.map((item) => {
                         const active = isActive(item.href);
                         return (
                             <Link
                                 key={item.href}
                                 to={item.href}
-                                className={`transition-colors py-1 relative ${
+                                className={`transition-colors py-1 relative whitespace-nowrap ${
                                     active
                                         ? 'text-amber-500'
                                         : 'hover:text-amber-400 text-stone-300'
@@ -84,9 +98,9 @@ export default function PublicHeader() {
                 </nav>
 
                 {/* Right Side: WhatsApp & Plan My Trip CTA (Desktop) */}
-                <div className="hidden sm:flex items-center space-x-3">
+                <div className="hidden sm:flex items-center space-x-3 shrink-0">
                     <a
-                        href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20would%20like%20to%20plan%20my%20trip."
+                        href={WHATSAPP_URL}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => trackWhatsAppClick('header_desktop')}
@@ -135,7 +149,7 @@ export default function PublicHeader() {
             {isOpen && (
                 <div className="lg:hidden fixed inset-0 top-[53px] z-50 bg-stone-950/95 backdrop-blur-md border-t border-stone-800 flex flex-col p-6 overflow-y-auto">
                     <div className="flex flex-col space-y-4 text-sm font-bold uppercase tracking-wider text-stone-200">
-                        {navLinks.map((item) => (
+                        {mobileNavLinks.map((item) => (
                             <Link
                                 key={item.href}
                                 to={item.href}
@@ -160,7 +174,7 @@ export default function PublicHeader() {
                         </Link>
 
                         <a
-                            href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20would%20like%20to%20plan%20my%20trip."
+                            href={WHATSAPP_URL}
                             target="_blank"
                             rel="noreferrer"
                             onClick={() => {
@@ -169,14 +183,14 @@ export default function PublicHeader() {
                             }}
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-center py-3 rounded-xl font-bold text-xs tracking-wider shadow-sm flex items-center justify-center gap-2"
                         >
-                            <span>Chat on WhatsApp (+91 81497 83494)</span>
+                            <span>Chat on WhatsApp ({DISPLAY_WHATSAPP})</span>
                         </a>
 
                         <a
-                            href="tel:+918400554029"
+                            href={PHONE_URL}
                             className="w-full bg-stone-900 text-stone-300 text-center py-2.5 rounded-xl text-xs font-semibold border border-stone-800 flex items-center justify-center gap-1.5"
                         >
-                            <span>Helpline: +91 84005 54029</span>
+                            <span>Helpline: {DISPLAY_PHONE}</span>
                         </a>
                     </div>
                 </div>

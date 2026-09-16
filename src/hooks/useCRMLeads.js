@@ -4,20 +4,40 @@ import { INITIAL_MANUAL_LEAD } from '../constants/crm';
 import { computeTripReadiness } from '../utils/tripReadiness';
 import { detectIssues } from '../utils/leadIssues';
 import { checkRequirementsReadiness } from '../utils/requirementsEngine';
+import { safeDateOnly } from '../utils/dateUtils';
 
 
-export function useCRMLeads(token, isAuthenticated, handleLogout) {
+export function useCRMLeads(token, isAuthenticated, handleLogout, activeNav = 'LEADS') {
     const [leads, setLeads] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [selectedLead, setSelectedLead] = useState(null);
     const [profileTab, setProfileTab] = useState('overview');
     const [isSaving, setIsSaving] = useState(false);
 
-    // States for Manual Lead creation
+    // States for Manual Lead creation with safe session draft persistence
     const [isManualOpen, setIsManualOpen] = useState(false);
     const [isSavingManual, setIsSavingManual] = useState(false);
-    const [manualLead, setManualLead] = useState(INITIAL_MANUAL_LEAD);
+    const [manualLead, setManualLead] = useState(() => {
+        try {
+            const saved = sessionStorage.getItem('crm_manual_lead_draft');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && (parsed.name || parsed.mobile)) {
+                    return { ...INITIAL_MANUAL_LEAD, ...parsed };
+                }
+            }
+        } catch {}
+        return INITIAL_MANUAL_LEAD;
+    });
+
+    // Clear draft helper
+    const handleClearManualDraft = useCallback(() => {
+        try {
+            sessionStorage.removeItem('crm_manual_lead_draft');
+        } catch {}
+        setManualLead(INITIAL_MANUAL_LEAD);
+    }, []);
 
     // Filter and Search States
     const [statusFilter, setStatusFilter] = useState('All');
@@ -60,11 +80,24 @@ export function useCRMLeads(token, isAuthenticated, handleLogout) {
         }
     }, [token, handleLogout]);
 
+    // Fetch leads whenever authenticated so committed records always survive refresh
     useEffect(() => {
         if (isAuthenticated) {
             fetchLeads();
         }
-    }, [isAuthenticated, fetchLeads]);
+    }, [isAuthenticated, activeNav, selectedLead, fetchLeads]);
+
+    // Warn before unload if manual lead drawer has unsaved draft changes
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (isManualOpen && (manualLead.name?.trim() || manualLead.mobile?.trim())) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isManualOpen, manualLead]);
 
     const handleInputChange = useCallback((e) => {
         const { name, value } = e.target;
@@ -113,6 +146,9 @@ export function useCRMLeads(token, isAuthenticated, handleLogout) {
                 const advance = Number(advanceVal) || 0;
                 updated.remainingAmount = total - advance;
             }
+            try {
+                sessionStorage.setItem('crm_manual_lead_draft', JSON.stringify(updated));
+            } catch {}
             return updated;
         });
     }, []);
@@ -128,6 +164,9 @@ export function useCRMLeads(token, isAuthenticated, handleLogout) {
             const resData = await crmApi.createManualEnquiry(token, manualLead);
             if (resData.success) {
                 alert('🎉 Offline Manual Lead Created Successfully!');
+                try {
+                    sessionStorage.removeItem('crm_manual_lead_draft');
+                } catch {}
                 setIsManualOpen(false);
                 setManualLead(INITIAL_MANUAL_LEAD);
                 fetchLeads();
@@ -179,8 +218,7 @@ export function useCRMLeads(token, isAuthenticated, handleLogout) {
             // 2. Mission Filter
             let matchesMission = true;
             if (missionFilter === 'followups') {
-                const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
+                const todayStr = safeDateOnly(new Date());
                 matchesMission = (lead.status === 'In-Progress' || lead.status === 'Pending') &&
                     lead.followUpDate && lead.followUpDate <= todayStr;
             } else if (missionFilter === 'calls') {
@@ -243,6 +281,7 @@ export function useCRMLeads(token, isAuthenticated, handleLogout) {
         handleSaveChanges,
         handleManualInputChange,
         handleManualSubmit,
+        handleClearManualDraft,
         stats,
         filteredLeads
     };

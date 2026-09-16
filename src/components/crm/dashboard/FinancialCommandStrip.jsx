@@ -18,7 +18,7 @@ export default function FinancialCommandStrip({ strip = {} }) {
                 {/* Auxiliary Cash & Expense Telemetry */}
                 <div className="flex items-center space-x-3 text-[11px]">
                     <div className="bg-stone-800 px-2.5 py-1 rounded-xl border border-stone-700 flex items-center space-x-1.5">
-                        <span className="text-stone-400 font-bold">Liquid Cash:</span>
+                        <span className="text-stone-400 font-bold">Bank & Cash Balance:</span>
                         <span className="font-extrabold text-emerald-400">₹{(strip.netCashPosition || 0).toLocaleString('en-IN')}</span>
                     </div>
                     {(strip.businessExpenses || 0) > 0 && (

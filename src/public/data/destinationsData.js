@@ -1,6 +1,6 @@
-import varanasiImg from '../../assets/ExperienceVaranasi/KashiVT.png';
+import varanasiImg from '../../assets/ExperienceVaranasi/KashiVT.avif';
 import sarnathImg from '../../assets/ExperienceVaranasi/sarnathStupa.png';
-import ayodhyaImg from '../../assets/tour packege photo/ramJanmBhumi.png';
+import ayodhyaImg from '../../assets/tour packege photo/ramJanmBhumi.avif';
 import bodhgayaImg from '../../assets/tour packege photo/BiharBuddha.png';
 
 export const DESTINATIONS = [

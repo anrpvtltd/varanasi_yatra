@@ -57,6 +57,28 @@ const handleResponse = async (response) => {
     return resData;
 };
 
+// ⚡ In-Flight Request Deduplication to prevent overlapping concurrent network fetches
+const inFlightRequests = new Map();
+function deduplicatedFetch(url, options) {
+    const cacheKey = `${options?.method || 'GET'}:${url}:${options?.headers?.Authorization || ''}`;
+    if (inFlightRequests.has(cacheKey)) {
+        return inFlightRequests.get(cacheKey);
+    }
+    const promise = fetch(url, options)
+        .then(async (response) => {
+            const data = await handleResponse(response);
+            inFlightRequests.delete(cacheKey);
+            return data;
+        })
+        .catch((err) => {
+            inFlightRequests.delete(cacheKey);
+            throw err;
+        });
+    inFlightRequests.set(cacheKey, promise);
+    return promise;
+}
+
+
 export const crmApi = {
     async login({ email, password, loginMode }) {
         const response = await fetch(`${BASE_URL}/admin/login`, {
@@ -200,11 +222,88 @@ export const crmApi = {
         return handleResponse(response);
     },
 
-    async fetchEnquiries(token) {
-        const response = await fetch(`${BASE_URL}/admin/enquiries`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+    async updateUser(token, userId, updateData) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users/${userId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(updateData)
         });
         return handleResponse(response);
+    },
+
+    async activateUser(token, userId) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users/${userId}/activate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        return handleResponse(response);
+    },
+
+    async deactivateUser(token, userId) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/users/${userId}/deactivate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchTeamOverview(token) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/team/overview`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchTeamLeads(token, params = {}) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const query = new URLSearchParams();
+        if (params.page) query.append('page', params.page);
+        if (params.limit) query.append('limit', params.limit);
+        if (params.status) query.append('status', params.status);
+        if (params.assignedTo) query.append('assignedTo', params.assignedTo);
+        const qs = query.toString() ? `?${query.toString()}` : '';
+        const response = await fetch(`${BASE_URL}/admin/team/leads${qs}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        return handleResponse(response);
+    },
+
+    async assignTeamLead(token, assignmentData) {
+        const authToken = token || tokenStorage.getAccessToken();
+        const response = await fetch(`${BASE_URL}/admin/team/leads/assign`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(assignmentData)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchEnquiries(token, params = {}) {
+        const query = new URLSearchParams();
+        if (params.page) query.append('page', params.page);
+        if (params.limit) query.append('limit', params.limit);
+        if (params.status) query.append('status', params.status);
+        if (params.search) query.append('search', params.search);
+        const qs = query.toString() ? `?${query.toString()}` : '';
+        return deduplicatedFetch(`${BASE_URL}/admin/enquiries${qs}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
     },
 
     async updateEnquiry(token, enquiryId, data) {
@@ -338,11 +437,32 @@ export const crmApi = {
 
 
     // Booking Helpers (Prompt 4)
-    async fetchBookings(token) {
-        const response = await fetch(`${BASE_URL}/admin/bookings`, {
+    async fetchBookings(token, params = {}) {
+        const query = new URLSearchParams();
+        if (params.page) query.append('page', params.page);
+        if (params.limit) query.append('limit', params.limit);
+        const qs = query.toString() ? `?${query.toString()}` : '';
+        return deduplicatedFetch(`${BASE_URL}/admin/bookings${qs}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        return handleResponse(response);
+    },
+
+    // Customer 360 Helpers (Phase 13 Performance Optimization)
+    async fetchCustomers(token, params = {}) {
+        const query = new URLSearchParams();
+        if (params.page) query.append('page', params.page);
+        if (params.limit) query.append('limit', params.limit);
+        if (params.search) query.append('search', params.search);
+        const qs = query.toString() ? `?${query.toString()}` : '';
+        return deduplicatedFetch(`${BASE_URL}/admin/customers${qs}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    },
+
+    async fetchCustomer(token, id) {
+        return deduplicatedFetch(`${BASE_URL}/admin/customers/${id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
     },
 
     async fetchBooking(token, id) {
@@ -705,6 +825,680 @@ export const crmApi = {
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify(partnerData)
+        });
+        return handleResponse(response);
+    },
+
+    // 🌐 Dynamic QR Network API (Prompt 4)
+    async fetchQrAreas(token) {
+        const response = await fetch(`${BASE_URL}/admin/qr/areas`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const res = await handleResponse(response);
+        if (res.success && Array.isArray(res.areas) && !res.data) {
+            res.data = res.areas;
+        }
+        return res;
+    },
+
+    async createQrArea(token, areaData) {
+        const response = await fetch(`${BASE_URL}/admin/qr/areas`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(areaData)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchQrArea(token, id) {
+        const response = await fetch(`${BASE_URL}/admin/qr/areas/${id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateQrArea(token, id, areaData) {
+        const response = await fetch(`${BASE_URL}/admin/qr/areas/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(areaData)
+        });
+        return handleResponse(response);
+    },
+
+    async updateQrAreaStatus(token, id, status) {
+        const response = await fetch(`${BASE_URL}/admin/qr/areas/${id}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status })
+        });
+        return handleResponse(response);
+    },
+
+    async fetchQrRecords(token, filters = {}) {
+        const query = new URLSearchParams(filters).toString();
+        const url = `${BASE_URL}/admin/qr${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const res = await handleResponse(response);
+        if (res.success && Array.isArray(res.records) && !res.data) {
+            res.data = res.records;
+        }
+        return res;
+    },
+
+    async createQrRecord(token, qrData) {
+        const response = await fetch(`${BASE_URL}/admin/qr`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(qrData)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchQrRecord(token, qrId) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateQrRecord(token, qrId, data) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return handleResponse(response);
+    },
+
+    async generateQr(token, qrId) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}/generate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async markQrInstalled(token, qrId, installData = {}) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}/install`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(installData)
+        });
+        return handleResponse(response);
+    },
+
+    async markQrDamaged(token, qrId, damageData = {}) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}/damage`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(damageData)
+        });
+        return handleResponse(response);
+    },
+
+    async createQrReplacement(token, qrId, replacementData = {}) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}/replace`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(replacementData)
+        });
+        return handleResponse(response);
+    },
+
+    async deactivateQr(token, qrId, data = {}) {
+        const response = await fetch(`${BASE_URL}/admin/qr/${qrId}/deactivate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchQrAnalytics(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/qr/analytics${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAreaQrAnalytics(token, areaId) {
+        const response = await fetch(`${BASE_URL}/admin/qr/analytics/areas/${areaId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchPublicQr(qrId) {
+        const response = await fetch(`${BASE_URL}/public/qr/${qrId}`);
+        return handleResponse(response);
+    },
+
+    async recordPublicQrScan(qrId) {
+        const response = await fetch(`${BASE_URL}/public/qr/${qrId}/scan`, {
+            method: 'POST'
+        });
+        return handleResponse(response);
+    },
+
+    // -------------------------------------------------------------
+    // AI FOUNDATION & CEO CONTROL CENTER (Prompt 5)
+    // -------------------------------------------------------------
+    async fetchAiHealth() {
+        const response = await fetch(`${BASE_URL}/admin/ai/health`);
+        return handleResponse(response);
+    },
+
+    async fetchAiConfig(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/config`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateAiConfig(token, configData) {
+        const response = await fetch(`${BASE_URL}/admin/ai/config`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(configData)
+        });
+        return handleResponse(response);
+    },
+
+    async toggleAiEmergencyStop(token, active) {
+        const response = await fetch(`${BASE_URL}/admin/ai/config/emergency-stop`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ active })
+        });
+        return handleResponse(response);
+    },
+
+    async toggleAiSafeMode(token, enabled) {
+        const response = await fetch(`${BASE_URL}/admin/ai/config/safe-mode`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ enabled })
+        });
+        return handleResponse(response);
+    },
+
+    async toggleAiMaster(token, enabled) {
+        const response = await fetch(`${BASE_URL}/admin/ai/config/master-toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ enabled })
+        });
+        return handleResponse(response);
+    },
+
+    async executeAiRun(token, runPayload) {
+        const response = await fetch(`${BASE_URL}/admin/ai/run`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(runPayload)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiRuns(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/ai/runs${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiRunDetails(token, id) {
+        const response = await fetch(`${BASE_URL}/admin/ai/runs/${id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiAuditLogs(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/ai/audit${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiOpportunities(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/ai/opportunities${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateAiOpportunity(token, id, data) {
+        const response = await fetch(`${BASE_URL}/admin/ai/opportunities/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiAssistantMetrics(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/assistant/metrics`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    // -------------------------------------------------------------
+    // AI Sales Assistant Endpoints (Prompt 7)
+    // -------------------------------------------------------------
+    async analyzeLeadWithAi(token, leadId, additionalNotes = '') {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/analyze-lead`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ leadId, additionalNotes })
+        });
+        return handleResponse(response);
+    },
+
+    async generateAiFollowUp(token, leadId, options = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/generate-followup`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ leadId, ...options })
+        });
+        return handleResponse(response);
+    },
+
+    async analyzeAiObjection(token, leadId, customerText) {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/analyze-objection`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ leadId, customerText })
+        });
+        return handleResponse(response);
+    },
+
+    async prepareAiQuoteInputs(token, leadId) {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/prepare-quote-inputs`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ leadId })
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiSalesSummary(token, leadId) {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/summary/${leadId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiSalesRecommendations(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/ai/sales/recommendations${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateAiRecommendation(token, id, data) {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/recommendations/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchAiSalesMetrics(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/sales/metrics`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    // -------------------------------------------------------------
+    // AI Customer Hunter API (Prompt 8)
+    // -------------------------------------------------------------
+    async fetchHunterStatus(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async startHunterRun(token, payload = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+        return handleResponse(response);
+    },
+
+    async pauseHunter(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/pause`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async resumeHunter(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/resume`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async stopHunter(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/stop`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterSources(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterSource(token, sourceId) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/${sourceId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async testHunterSource(token, sourceId) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/${sourceId}/test`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async runHunterSource(token, sourceId, options = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/${sourceId}/run`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(options)
+        });
+        return handleResponse(response);
+    },
+
+    async runAllHunterSources(token, options = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/run-all`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(options)
+        });
+        return handleResponse(response);
+    },
+
+    async updateHunterSourceConfig(token, sourceId, updates = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/${sourceId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(updates)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterSourceHealth(token, sourceId) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/${sourceId}/health`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterSourceStats(token, sourceId) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/sources/${sourceId}/stats`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterSignals(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/ai/hunter/signals${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterOpportunities(token, params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/admin/ai/hunter/opportunities${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterOpportunity(token, id) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateHunterOpportunity(token, id, data) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return handleResponse(response);
+    },
+
+    async approveHunterOpportunity(token, id) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/approve`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async rejectHunterOpportunity(token, id, reason = '') {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ reason })
+        });
+        return handleResponse(response);
+    },
+
+    async duplicateHunterOpportunity(token, id) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/duplicate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async convertHunterOpportunityToLead(token, id, leadData = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/convert-to-lead`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(leadData)
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterAnalytics(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/analytics`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async fetchHunterConfig(token) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/config`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async updateHunterConfig(token, updates) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/config`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(updates)
+        });
+        return handleResponse(response);
+    },
+
+    // Prompt 9.8: Contactability Layer API
+    async fetchOpportunityContactability(token, id) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/contactability`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return handleResponse(response);
+    },
+
+    async discoverContactRoutes(token, id, options = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/contactability/discover`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(options)
+        });
+        return handleResponse(response);
+    },
+
+    async addManualContactRoute(token, id, routeData) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/contactability/add-route`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(routeData)
+        });
+        return handleResponse(response);
+    },
+
+    async verifyContactRoute(token, id, routeIndex, verificationData = {}) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/contactability/routes/${routeIndex}/verify`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(verificationData)
+        });
+        return handleResponse(response);
+    },
+
+    async recordContactOutcome(token, id, outcomeData) {
+        const response = await fetch(`${BASE_URL}/admin/ai/hunter/opportunities/${id}/contact-outcome`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(outcomeData)
         });
         return handleResponse(response);
     }

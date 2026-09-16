@@ -10,8 +10,8 @@ export default function ExperiencesHubPage() {
     return (
         <>
             <SEO
-                title="Varanasi Experiences | Ganga Aarti, Boat Rides & Darshan | Varanasi Yatra"
-                description="Explore curated Varanasi experiences. Private morning & evening boat rides, Kashi Vishwanath Sugam Darshan, Sarnath heritage walks, and authentic local food trails."
+                title="Varanasi Experiences | Ganga Aarti, Boat Rides & Darshan | Kashi-Vashi"
+                description="Explore handpicked experiences in Varanasi. Evening Ganga Aarti, private sunrise boat rides, Kashi Vishwanath darshan assistance, and guided heritage walking tours."
                 pathname="/experiences"
             />
 

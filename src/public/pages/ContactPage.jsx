@@ -9,7 +9,7 @@ export default function ContactPage() {
     return (
         <>
             <SEO
-                title="Contact Varanasi Yatra | 24x7 Local Helpline & WhatsApp Desk"
+                title="Contact Kashi-Vashi | 24x7 Local Helpline & WhatsApp Desk"
                 description="Get in touch with our local Varanasi travel coordinators. Direct phone: +91 84005 54029, WhatsApp: +91 81497 83494, Email: info.varanasi.yatra@gmail.com, Instagram: @info.varanasi.yatra."
                 pathname="/contact"
             />
@@ -29,7 +29,7 @@ export default function ContactPage() {
                     <SectionHeading
                         as="h1"
                         eyebrow="Direct Local Reach"
-                        title="Contact Varanasi Yatra"
+                        title="Contact Kashi-Vashi"
                         description="Whether you have an immediate question about today's Aarti timings or wish to plan an upcoming multi-day family pilgrimage, our team is directly reachable."
                     />
                 </div>
@@ -123,7 +123,7 @@ export default function ContactPage() {
                                 </div>
                                 <div>
                                     <span className="text-[11px] uppercase font-bold tracking-wider text-stone-500 block">
-                                        Instagram · BANARAS YATRA Travel & Tours
+                                        Instagram · Kashi-Vashi Travel & Tours
                                     </span>
                                     <span className="text-sm font-mono font-bold text-stone-900 group-hover:text-pink-600 transition-colors">
                                         @info.varanasi.yatra

@@ -30,7 +30,7 @@ export default function DestinationDetailPage() {
     return (
         <>
             <SEO
-                title={`${name} Travel Guide | Varanasi Yatra`}
+                title={`${name} Travel Guide | Kashi-Vashi`}
                 description={overview}
                 pathname={`/destinations/${slug}`}
                 image={image}
@@ -197,7 +197,7 @@ export default function DestinationDetailPage() {
                                 Plan Your {name} Trip
                             </h3>
                             <p className="text-stone-600 text-xs leading-relaxed mb-6">
-                                Private transport, hotel selection near major sites, and knowledgeable guide escort arranged by Varanasi Yatra.
+                                Private transport, hotel selection near major sites, and knowledgeable guide escort arranged by Kashi-Vashi.
                             </p>
 
                             <Link

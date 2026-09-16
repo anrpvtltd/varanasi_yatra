@@ -251,7 +251,7 @@ export default function CEOFinancialWorkspace({
             </div>
 
             {/* TOP 6 KPI CARDS */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
                 {/* 1. Total Revenue */}
                 <KPICard
                     title="Total Revenue"

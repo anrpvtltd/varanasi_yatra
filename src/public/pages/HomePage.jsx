@@ -14,6 +14,7 @@ import { FAQS } from '../data/faqsData';
 import gangaAartiHero from '../../assets/ExperienceVaranasi/GangaAarti.avif';
 import assiMorningImg from '../../assets/ExperienceVaranasi/AssiMorning.avif';
 import { trackWhatsAppClick } from '../utils/analytics';
+import { WHATSAPP_URL } from '../../shared/config/brand';
 
 const SERVICE_TAGS = [
     { name: 'Private Boat Rides', icon: '⛵' },
@@ -71,7 +72,7 @@ export default function HomePage() {
     return (
         <>
             <SEO
-                title="Varanasi Yatra | Authentic Spiritual Pilgrimages & Custom Tours"
+                title="Kashi-Vashi | Authentic Spiritual Pilgrimages & Custom Tours"
                 description="Experience Varanasi with trusted local travel planners. Private boat rides, Kashi Vishwanath darshan assistance, Sarnath excursions, and transparent custom itineraries."
                 pathname="/"
             />
@@ -117,7 +118,7 @@ export default function HomePage() {
                                 Plan My Trip
                             </a>
                             <a
-                                href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20would%20like%20to%20plan%20my%20trip."
+                                href={WHATSAPP_URL}
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={() => trackWhatsAppClick('hero_cta')}
@@ -224,13 +225,13 @@ export default function HomePage() {
                 </div>
             </section>
 
-            {/* 5. WHY TRAVELERS CHOOSE VARANASI YATRA (Merged Services + Values + Trust) */}
+            {/* 5. WHY TRAVELERS CHOOSE KASHI-VASHI (Merged Services + Values + Trust) */}
             <section className="py-14 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
                 <div className="text-center max-w-2xl mx-auto mb-12">
                     <SectionHeading
                         align="center"
                         eyebrow="Transparent Local Stewardship"
-                        title="Why Travelers Choose Varanasi Yatra"
+                        title="Why Travelers Choose Kashi-Vashi"
                         description="Varanasi can be overwhelming for first-time visitors. Our purpose is to make your pilgrimage peaceful, dignified, and scam-free."
                     />
                 </div>

@@ -17,7 +17,7 @@ export default function PlanYourTripPage() {
     return (
         <>
             <SEO
-                title="Plan Your Varanasi Trip | Custom Spiritual Itineraries & Transparent Quotes | Varanasi Yatra"
+                title="Plan Your Varanasi Trip | Custom Spiritual Itineraries & Transparent Quotes | Kashi-Vashi"
                 description="Design your custom pilgrimage or vacation in Varanasi. Choose your travel dates, preferred boat rides, temple darshan, and private transport with complete transparency."
                 pathname="/plan-your-trip"
             />
@@ -38,7 +38,7 @@ export default function PlanYourTripPage() {
                         as="h1"
                         align="center"
                         eyebrow="Custom Travel Facilitation"
-                        title="Plan Your Varanasi Yatra"
+                        title="Plan Your Kashi-Vashi Journey"
                         description="Tell us your travel dates, group size, and what you wish to experience. Our local Varanasi team will craft a relaxed, transparent itinerary tailored to your family's pace."
                     />
                 </div>

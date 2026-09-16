@@ -46,13 +46,19 @@ export default function LeadTable({ filteredLeads, loading, error, user, onOpenL
                                         <td className="p-5 space-y-1.5">
                                             <div className="flex items-center space-x-2">
                                                 <span className="font-semibold text-slate-900 text-base">{lead.name}</span>
-                                                {lead.createdBy && (
-                                                    <span className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider ${
-                                                        lead.createdBy === 'Website' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                                                    }`}>
-                                                        {lead.createdBy}
-                                                    </span>
-                                                )}
+                                                {(() => {
+                                                    const isQr = lead.source === 'AREA_QR' || lead.source === 'HOTEL_QR' || lead.leadSource === 'QR' || Boolean(lead.qrId);
+                                                    const displayCreator = isQr && (lead.createdBy === 'Website' || lead.createdBy === 'Website Public Lead')
+                                                        ? (lead.source === 'HOTEL_QR' ? 'Hotel QR' : 'Area QR')
+                                                        : lead.createdBy;
+                                                    return displayCreator ? (
+                                                        <span className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider ${
+                                                            isQr ? 'bg-orange-100 text-orange-800 border border-orange-200' : (displayCreator === 'Website' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700')
+                                                        }`}>
+                                                            {displayCreator}
+                                                        </span>
+                                                    ) : null;
+                                                })()}
                                             </div>
 
                                             <div className="space-y-1">
@@ -119,21 +125,35 @@ export default function LeadTable({ filteredLeads, loading, error, user, onOpenL
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center space-x-1.5 pt-0.5">
-                                                    {lead.source === 'HOTEL_QR' || lead.partnerName ? (
+                                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                    {lead.source === 'HOTEL_QR' || lead.partnerName || (lead.leadSource === 'QR' && lead.partnerId) ? (
                                                         <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300/80 uppercase tracking-wider flex items-center gap-1">
                                                             <span>🏨</span>
-                                                            <span>HOTEL QR: {lead.partnerName || lead.partnerId || 'Partner'}</span>
+                                                            <span>QR • Hotel: {lead.partnerName || lead.partnerId || 'Partner'}</span>
+                                                            {lead.qrId && <span className="font-mono font-bold text-amber-800/80">({lead.qrId})</span>}
                                                         </span>
-                                                    ) : lead.source === 'WHATSAPP' ? (
+                                                    ) : lead.source === 'AREA_QR' || lead.qrId || lead.qrAttribution || lead.leadSource === 'QR' ? (
+                                                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-orange-100 text-orange-900 border border-orange-300/80 uppercase tracking-wider flex items-center gap-1">
+                                                            <span>📱</span>
+                                                            <span>QR{lead.areaName || lead.qrAttribution?.areaName ? ` • ${lead.areaName || lead.qrAttribution?.areaName}` : ''}</span>
+                                                            {(lead.qrId || lead.qrAttribution?.qrId) && (
+                                                                <span className="font-mono font-bold text-orange-800/80">({lead.qrId || lead.qrAttribution?.qrId})</span>
+                                                            )}
+                                                        </span>
+                                                    ) : lead.source === 'WHATSAPP' || lead.leadSource === 'WhatsApp' ? (
                                                         <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80 uppercase tracking-wider flex items-center gap-1">
                                                             <span>💬</span>
                                                             <span>WHATSAPP</span>
                                                         </span>
-                                                    ) : lead.source === 'OFFLINE' || lead.leadSource === 'Offline/Manual' ? (
+                                                    ) : lead.source === 'OFFLINE' || lead.leadSource === 'Offline/Manual' || lead.source === 'MANUAL' ? (
                                                         <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-300/80 uppercase tracking-wider flex items-center gap-1">
                                                             <span>📞</span>
                                                             <span>OFFLINE</span>
+                                                        </span>
+                                                    ) : lead.leadSource === 'AI_HUNTER' || lead.aiHunter ? (
+                                                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-cyan-100 text-cyan-900 border border-cyan-300/80 uppercase tracking-wider flex items-center gap-1">
+                                                            <span>✨</span>
+                                                            <span>AI HUNTER</span>
                                                         </span>
                                                     ) : (
                                                         <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 uppercase tracking-wider flex items-center gap-1">

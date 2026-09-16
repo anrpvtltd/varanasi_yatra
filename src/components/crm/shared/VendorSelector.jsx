@@ -164,6 +164,20 @@ export default function VendorSelector({
                 </div>
             )}
 
+            {/* CATEGORY-SPECIFIC HELPER: TRANSPORT / CURRENT VEHICLE RATE */}
+            {(category === 'TRANSPORT' || category === 'CAR' || category === 'DRIVER' || activeVendor?.commercialModel === 'VENDOR_QUOTE_REQUIRED') && (
+                <div className="bg-blue-50 border border-blue-200/80 p-2.5 rounded-xl text-xs space-y-1">
+                    <div className="font-bold text-blue-950 flex items-center gap-1.5">
+                        <span>🚗</span>
+                        <span>Current Vehicle Rate — Vendor Quote Required</span>
+                        <span className="text-blue-700 font-semibold text-[10px]">· Dynamic Rate</span>
+                    </div>
+                    <span className="text-[10px] text-blue-800 font-medium block">
+                        Vehicle pricing requires current vendor/driver confirmation based on travel dates & route. Enter current negotiated vendor rate.
+                    </span>
+                </div>
+            )}
+
             {/* CATEGORY-SPECIFIC HELPER: PANDIT CUSTOMER DIRECT ACTIONS */}
             {activeVendor && (category === 'PANDIT' || activeVendor.commercialModel === 'CUSTOMER_DIRECT') && (
                 <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">

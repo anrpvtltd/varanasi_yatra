@@ -28,7 +28,7 @@ export default function QuickTripPlanner({
         duration: '2 Days / 1 Night',
         guests: '2 Adults',
         comingFrom: '',
-        requirements: initialPackage ? [initialPackage] : ['darshan', 'boat'],
+        requirements: initialPackage ? [initialPackage] : [],
         website_hp: ''
     });
 
@@ -102,8 +102,13 @@ export default function QuickTripPlanner({
             comingFrom: formData.comingFrom.trim() || 'Not specified',
             requirements: formData.requirements,
             source: finalSource,
+            leadSource: (finalSource === 'HOTEL_QR' || finalSource === 'AREA_QR' || finalQrId) ? 'QR' : 'Website',
             partnerId: finalPartnerId,
             qrId: finalQrId,
+            areaId: attr.areaId || undefined,
+            areaName: attr.areaName || undefined,
+            qrType: attr.qrType || undefined,
+            qrAttribution: attr.qrAttribution || undefined,
             landingPath: typeof window !== 'undefined' ? window.location.pathname : '',
             utm: {
                 source: attr.utmSource || null,
@@ -143,9 +148,9 @@ export default function QuickTripPlanner({
                         date: payload.travelDate,
                         travelers: payload.guests,
                         destination: 'Varanasi',
-                        specialRequirements: formData.requirements.join(', '),
+                        specialRequirements: formData.requirements.length > 0 ? formData.requirements.join(', ') : 'Custom Itinerary / To be discussed',
                         pickup: payload.comingFrom,
-                        leadSource: finalSource === 'HOTEL_QR' ? 'QR' : 'Website'
+                        leadSource: (finalSource === 'HOTEL_QR' || finalSource === 'AREA_QR' || finalQrId) ? 'QR' : 'Website'
                     })
                 });
 
@@ -173,7 +178,7 @@ export default function QuickTripPlanner({
 
     if (submitted) {
         const waText = encodeURIComponent(
-            `Namaste Varanasi Yatra! I just submitted a trip request for ${formData.name} (${formData.guests}, arriving ${formData.travelDate || 'soon'}). Requirements: ${formData.requirements.join(', ')}.`
+            `Namaste Kashi-Vashi! I just submitted a trip request for ${formData.name} (${formData.guests}, arriving ${formData.travelDate || 'soon'}). Requirements: ${formData.requirements.length > 0 ? formData.requirements.join(', ') : 'Custom Itinerary'}.`
         );
 
         return (
@@ -217,7 +222,7 @@ export default function QuickTripPlanner({
                                 duration: '2 Days / 1 Night',
                                 guests: '2 Adults',
                                 comingFrom: '',
-                                requirements: ['darshan', 'boat']
+                                requirements: []
                             });
                         }}
                         className="text-stone-600 hover:text-stone-900 font-bold text-sm px-5 py-3 rounded-xl border border-stone-200 hover:bg-stone-50 transition"
@@ -242,6 +247,17 @@ export default function QuickTripPlanner({
                     <p className="text-stone-600 text-xs sm:text-sm mt-2 max-w-xl mx-auto">
                         {subtitle}
                     </p>
+                    <div className="mt-3 flex items-center justify-center gap-2">
+                        <span className="text-xs text-stone-500">Prefer conversational planning?</span>
+                        <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('open-ai-assistant'))}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-300 transition active:scale-95 cursor-pointer shadow-xs"
+                        >
+                            <span>🛕</span>
+                            <span>Plan with AI Assistant</span>
+                        </button>
+                    </div>
                 </div>
 
                 {errorMessage && (

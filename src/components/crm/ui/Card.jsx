@@ -80,11 +80,11 @@ export function KPICard({
         <Card
             onClick={onClick}
             hover={Boolean(onClick)}
-            padding="p-4"
-            className={`flex flex-col justify-between space-y-2 min-w-0 overflow-hidden ${className}`}
+            padding="p-3.5 sm:p-4"
+            className={`flex flex-col justify-between space-y-2 min-w-0 ${className}`}
         >
-            <div className="flex items-center justify-between gap-2 min-w-0">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate block min-w-0" title={cardLabel}>
+            <div className="flex items-start justify-between gap-2 min-w-0">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block min-w-0 break-words whitespace-normal leading-tight" title={cardLabel}>
                     {cardLabel}
                 </span>
                 {icon && (
@@ -94,8 +94,8 @@ export function KPICard({
                 )}
             </div>
 
-            <div className="flex items-baseline justify-between gap-2 pt-0.5 min-w-0">
-                <span className={`text-lg sm:text-xl font-bold tracking-tight truncate block min-w-0 ${resolvedColor}`} title={String(value)}>
+            <div className="flex items-baseline justify-between gap-2 pt-0.5 min-w-0 flex-wrap sm:flex-nowrap">
+                <span className={`text-base sm:text-lg lg:text-xl xl:text-2xl font-bold tracking-tight block min-w-0 break-words leading-tight ${resolvedColor}`} title={String(value)}>
                     {value}
                 </span>
                 {badge && (
@@ -111,7 +111,7 @@ export function KPICard({
             </div>
 
             {cardSubtext && (
-                <span className="text-[11px] text-slate-400 font-medium block truncate min-w-0" title={cardSubtext}>
+                <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium block min-w-0 break-words whitespace-normal leading-tight" title={cardSubtext}>
                     {cardSubtext}
                 </span>
             )}

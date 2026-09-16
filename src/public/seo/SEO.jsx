@@ -1,6 +1,6 @@
 import React from 'react';
 
-const DEFAULT_TITLE = 'Varanasi Yatra — Spiritual Pilgrimage & Custom Tours in Kashi';
+const DEFAULT_TITLE = 'Kashi-Vashi — Spiritual Pilgrimage & Custom Tours in Kashi';
 const DEFAULT_DESC = 'Experience Varanasi like a local with personalized spiritual tours, Kashi Vishwanath darshan, sunrise Ganges boat cruises, Sarnath heritage, and handpicked hotels.';
 const BASE_DOMAIN = 'https://varanasiyatra.com';
 const DEFAULT_IMAGE = `${BASE_DOMAIN}/og-banner.png`;
@@ -20,13 +20,13 @@ export default function SEO({
     return (
         <>
             {/* React 19 Document Metadata Hoisting */}
-            <title>{title.includes('Varanasi Yatra') ? title : `${title} | Varanasi Yatra`}</title>
+            <title>{title.includes('Kashi-Vashi') ? title : `${title} | Kashi-Vashi`}</title>
             <meta name="description" content={description} />
             <link rel="canonical" href={canonicalUrl} />
             <meta name="robots" content={noIndex ? "noindex, nofollow" : "index, follow, max-image-preview:large"} />
 
             {/* Open Graph Tags */}
-            <meta property="og:site_name" content="Varanasi Yatra" />
+            <meta property="og:site_name" content="Kashi-Vashi" />
             <meta property="og:type" content={ogType} />
             <meta property="og:url" content={canonicalUrl} />
             <meta property="og:title" content={title} />

@@ -59,8 +59,8 @@ export default function HotelsPage() {
     return (
         <>
             <SEO
-                title="Where to Stay in Varanasi | Ghats vs Cantt Hotels Guidance | Varanasi Yatra"
-                description="Practical guidance on choosing accommodation in Varanasi. Honest pros & cons of staying near the Ghats vs Cantonment luxury hotels for families and pilgrims."
+                title="Where to Stay in Varanasi | Ghats vs Cantt Hotels Guidance | Kashi-Vashi"
+                description="Expert local advice on choosing hotels in Varanasi. Understand the difference between Ghat accommodations, luxury cantonment hotels, and family homestays."
                 pathname="/hotels"
             />
 

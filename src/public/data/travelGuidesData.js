@@ -1,6 +1,6 @@
-import aartiImg from '../../assets/ExperienceVaranasi/GangaAarti.png';
-import assiImg from '../../assets/ExperienceVaranasi/AssiMorning.png';
-import kashiImg from '../../assets/ExperienceVaranasi/KashiVT.png';
+import aartiImg from '../../assets/ExperienceVaranasi/GangaAarti.avif';
+import assiImg from '../../assets/ExperienceVaranasi/AssiMorning.avif';
+import kashiImg from '../../assets/ExperienceVaranasi/KashiVT.avif';
 
 export const TRAVEL_GUIDES = [
     {

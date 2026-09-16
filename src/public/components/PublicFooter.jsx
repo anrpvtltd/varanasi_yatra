@@ -2,6 +2,16 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 import { trackWhatsAppClick, trackCallClick } from '../utils/analytics';
+import {
+    DISPLAY_PHONE,
+    PHONE_URL,
+    DISPLAY_WHATSAPP,
+    WHATSAPP_URL,
+    EMAIL,
+    EMAIL_URL,
+    INSTAGRAM_HANDLE,
+    INSTAGRAM_URL
+} from '../../shared/config/brand';
 
 export default function PublicFooter() {
     return (
@@ -10,18 +20,29 @@ export default function PublicFooter() {
 
                 {/* Column 1: Brand pitch & mission */}
                 <div className="space-y-4">
-                    <Link to="/" className="flex items-center space-x-3 group" aria-label="Varanasi Yatra">
+                    <Link to="/" className="flex items-center space-x-3 group" aria-label="Kashi-Vashi — Spiritual & Heritage Journeys">
                         <img
                             src={logoImg}
-                            alt="Varanasi Yatra Emblem"
-                            className="w-10 h-10 object-contain flex-shrink-0 group-hover:scale-105 transition-transform"
+                            alt="Kashi-Vashi Emblem"
+                            className="w-12 h-12 object-contain flex-shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm"
                         />
                         <div>
-                            <span className="text-white font-serif font-bold text-lg leading-tight uppercase tracking-wider block">
-                                Varanasi Yatra
+                            <div className="flex items-baseline space-x-2">
+                                <span className="text-2xl font-hindi font-bold text-brand-saffron leading-tight">
+                                    काशी
+                                </span>
+                                <span className="text-white font-serif font-bold text-2xl leading-tight tracking-tight">
+                                    Vashi
+                                </span>
+                            </div>
+                            <span className="text-[11px] font-serif font-normal uppercase text-amber-300 tracking-widest block mt-0.5">
+                                Spiritual &amp; Heritage Journeys
                             </span>
-                            <span className="text-[10px] uppercase font-bold text-amber-500 tracking-widest block">
-                                Authentic Pilgrimages & Tours
+                            <span className="text-[12px] font-hindi font-medium text-stone-300 block mt-1">
+                                ― यात्रा नहीं, अनुभव है ―
+                            </span>
+                            <span className="text-[10px] font-hindi text-stone-400 block mt-0.5 tracking-wider">
+                                आस्था से अनुभव तक • Explore • Pray • Experience
                             </span>
                         </div>
                     </Link>
@@ -125,7 +146,7 @@ export default function PublicFooter() {
                         <li>
                             <Link to="/about" className="hover:text-amber-400 transition-colors inline-flex items-center gap-1.5">
                                 <span className="text-amber-500">✦</span>
-                                <span>About Varanasi Yatra</span>
+                                <span>About Kashi-Vashi</span>
                             </Link>
                         </li>
                         <li>
@@ -150,19 +171,19 @@ export default function PublicFooter() {
                     </h3>
 
                     <a
-                        href="tel:+918400554029"
+                        href={PHONE_URL}
                         onClick={() => trackCallClick('footer_phone')}
                         className="flex items-start gap-3 p-2.5 rounded-xl bg-stone-900/50 border border-stone-800/70 hover:border-amber-500/40 transition group"
                     >
                         <span className="text-amber-500 text-sm mt-0.5">📞</span>
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">Helpline (Direct)</span>
-                            <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono font-bold">+91 84005 54029</span>
+                            <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono font-bold">{DISPLAY_PHONE}</span>
                         </div>
                     </a>
 
                     <a
-                        href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20need%20assistance."
+                        href={WHATSAPP_URL}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => trackWhatsAppClick('footer_whatsapp')}
@@ -171,32 +192,32 @@ export default function PublicFooter() {
                         <span className="text-emerald-500 text-sm mt-0.5">💬</span>
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">WhatsApp Assistance</span>
-                            <span className="text-stone-200 group-hover:text-emerald-400 text-xs font-mono font-bold">+91 81497 83494</span>
+                            <span className="text-stone-200 group-hover:text-emerald-400 text-xs font-mono font-bold">{DISPLAY_WHATSAPP}</span>
                         </div>
                     </a>
 
                     <a
-                        href="mailto:info.varanasi.yatra@gmail.com"
+                        href={EMAIL_URL}
                         className="flex items-start gap-3 p-2.5 rounded-xl bg-stone-900/50 border border-stone-800/70 hover:border-amber-500/40 transition group"
                     >
                         <span className="text-amber-500 text-sm mt-0.5">✉️</span>
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">Official Email</span>
-                            <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono break-all">info.varanasi.yatra@gmail.com</span>
+                            <span className="text-stone-200 group-hover:text-amber-400 text-xs font-mono break-all">{EMAIL}</span>
                         </div>
                     </a>
 
                     <a
-                        href="https://www.instagram.com/info.varanasi.yatra/"
+                        href={INSTAGRAM_URL}
                         target="_blank"
                         rel="noreferrer"
                         className="flex items-start gap-3 p-2.5 rounded-xl bg-stone-900/50 border border-stone-800/70 hover:border-pink-500/40 transition group"
-                        title="BANARAS YATRA Travel & Tours on Instagram"
+                        title="Kashi-Vashi Travel & Tours on Instagram"
                     >
                         <span className="text-pink-500 text-sm mt-0.5">📸</span>
                         <div>
                             <span className="text-[11px] text-stone-500 block uppercase font-bold">Instagram</span>
-                            <span className="text-stone-200 group-hover:text-pink-400 text-xs font-mono">@info.varanasi.yatra</span>
+                            <span className="text-stone-200 group-hover:text-pink-400 text-xs font-mono">{INSTAGRAM_HANDLE}</span>
                         </div>
                     </a>
 
@@ -210,7 +231,7 @@ export default function PublicFooter() {
 
             {/* Bottom Row: Legal Links + Discreet Team Login */}
             <div className="max-w-7xl mx-auto pt-6 border-t border-stone-900 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-stone-500 font-medium">
-                <p>© 2026 Varanasi Yatra. All Rights Reserved.</p>
+                <p>© 2026 Kashi-Vashi. All Rights Reserved.</p>
 
                 <div className="flex flex-wrap items-center justify-center gap-3">
                     <a href="/privacy.html" target="_blank" rel="noreferrer" className="hover:text-stone-300 transition-colors">Privacy</a>

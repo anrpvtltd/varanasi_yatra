@@ -18,8 +18,8 @@ services:
       NODE_ENV: production
       PORT: 5001
       MONGODB_URI: mongodb://mongodb:27017/varanasi_yatra
-      JWT_SECRET: ${JWT_SECRET:-production_super_secure_jwt_access_secret_key_32chars}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-production_super_secure_jwt_refresh_secret_key_32chars}
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_access_secret_banaras_yatra_2026_super_secure_key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_jwt_refresh_secret_banaras_yatra_2026_super_secure_key}
       STORAGE_PROVIDER: LocalStorageProvider
       MAX_FILE_SIZE_MB: 10
       LOG_LEVEL: info

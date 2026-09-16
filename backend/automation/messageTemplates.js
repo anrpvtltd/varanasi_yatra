@@ -4,8 +4,8 @@ const DEFAULT_TEMPLATES = [
         name: 'New Enquiry Customer Confirmation',
         category: 'ENQUIRY',
         channel: 'WHATSAPP',
-        subject: 'Namaste {{customerName}}! We received your Varanasi Yatra enquiry 🙏',
-        body: 'Namaste {{customerName}} ji! 🙏\n\nThank you for reaching out to Varanasi Yatra. We have received your enquiry for {{packageName}}.\n\nOur Yatra specialist will contact you shortly to plan your spiritual journey!\n\nBest regards,\nVaranasi Yatra Team 🚩',
+        subject: 'Namaste {{customerName}}! We received your Kashi-Vashi enquiry 🙏',
+        body: 'Namaste {{customerName}} ji! 🙏\n\nThank you for reaching out to Kashi-Vashi. We have received your enquiry for {{packageName}}.\n\nOur Yatra specialist will contact you shortly to plan your spiritual journey!\n\nBest regards,\nKashi-Vashi Team 🚩',
         variables: ['customerName', 'packageName'],
         isSystemDefault: true
     },
@@ -24,8 +24,8 @@ const DEFAULT_TEMPLATES = [
         name: 'Quote Ready Customer Message',
         category: 'QUOTE',
         channel: 'WHATSAPP',
-        subject: 'Your Varanasi Yatra Itinerary & Custom Quote is Ready! 🕉️',
-        body: 'Namaste {{customerName}} ji!\n\nYour customized itinerary for {{packageName}} ({{tripDate}}) is ready!\n\nQuote Reference: {{quoteId}}\nTotal Amount: ₹{{totalAmount}}\n\nView details or request modifications by replying to this message.\n\nWarm regards,\nVaranasi Yatra',
+        subject: 'Your Kashi-Vashi Itinerary & Custom Quote is Ready! 🕉️',
+        body: 'Namaste {{customerName}} ji!\n\nYour customized itinerary for {{packageName}} ({{tripDate}}) is ready!\n\nQuote Reference: {{quoteId}}\nTotal Amount: ₹{{totalAmount}}\n\nView details or request modifications by replying to this message.\n\nWarm regards,\nKashi-Vashi',
         variables: ['customerName', 'packageName', 'tripDate', 'quoteId', 'totalAmount'],
         isSystemDefault: true
     },
@@ -34,7 +34,7 @@ const DEFAULT_TEMPLATES = [
         name: 'Booking Confirmation Message',
         category: 'BOOKING',
         channel: 'BOTH',
-        subject: 'Booking Confirmed! Welcome to Varanasi Yatra ({{bookingId}}) 🎉',
+        subject: 'Booking Confirmed! Welcome to Kashi-Vashi ({{bookingId}}) 🎉',
         body: 'Hari Om {{customerName}} ji! 🙏\n\nYour booking for {{packageName}} starting on {{tripDate}} is CONFIRMED!\n\nBooking Reference: {{bookingId}}\nAdvance Paid: ₹{{paidAmount}}\nRemaining Due: ₹{{amountDue}}\n\nWe look forward to hosting your sacred journey!',
         variables: ['customerName', 'packageName', 'tripDate', 'bookingId', 'paidAmount', 'amountDue'],
         isSystemDefault: true
@@ -45,7 +45,7 @@ const DEFAULT_TEMPLATES = [
         category: 'PAYMENT',
         channel: 'WHATSAPP',
         subject: 'Payment Reminder for Booking {{bookingId}} 💳',
-        body: 'Namaste {{customerName}} ji!\n\nThis is a friendly reminder regarding your upcoming trip on {{tripDate}} (Booking: {{bookingId}}).\n\nPending Due: ₹{{amountDue}}\n\nPlease complete your payment using this link: {{paymentLink}}\n\nThank you for choosing Varanasi Yatra!',
+        body: 'Namaste {{customerName}} ji!\n\nThis is a friendly reminder regarding your upcoming trip on {{tripDate}} (Booking: {{bookingId}}).\n\nPending Due: ₹{{amountDue}}\n\nPlease complete your payment using this link: {{paymentLink}}\n\nThank you for choosing Kashi-Vashi!',
         variables: ['customerName', 'tripDate', 'bookingId', 'amountDue', 'paymentLink'],
         isSystemDefault: true
     },
@@ -65,7 +65,7 @@ const DEFAULT_TEMPLATES = [
         category: 'TRIP',
         channel: 'WHATSAPP',
         subject: 'Your Varanasi Trip Starts Tomorrow! Driver Details Inside 🚗',
-        body: 'Namaste {{customerName}} ji!\n\nYour Varanasi Yatra begins on {{tripDate}}!\n\nDriver Name: {{driverName}}\nDriver Contact: {{driverMobile}}\nBooking Ref: {{bookingId}}\n\nOur team is at your service 24/7. Have a blessed Yatra! 🕉️',
+        body: 'Namaste {{customerName}} ji!\n\nYour Kashi-Vashi journey begins on {{tripDate}}!\n\nDriver Name: {{driverName}}\nDriver Contact: {{driverMobile}}\nBooking Ref: {{bookingId}}\n\nOur team is at your service 24/7. Have a blessed Yatra! 🕉️',
         variables: ['customerName', 'tripDate', 'driverName', 'driverMobile', 'bookingId'],
         isSystemDefault: true
     },
@@ -74,8 +74,8 @@ const DEFAULT_TEMPLATES = [
         name: 'Trip Completed & Feedback Request',
         category: 'FEEDBACK',
         channel: 'WHATSAPP',
-        subject: 'Thank You for Travelling with Varanasi Yatra! 🙏',
-        body: 'Namaste {{customerName}} ji!\n\nWe hope you had a divine and joyful experience on your Varanasi Yatra (Booking: {{bookingId}}).\n\nPlease share your valuable feedback with us to help us serve yatris better!\n\nJai Kashi Vishwanath! 🚩',
+        subject: 'Thank You for Travelling with Kashi-Vashi! 🙏',
+        body: 'Namaste {{customerName}} ji!\n\nWe hope you had a divine and joyful experience on your Kashi-Vashi journey (Booking: {{bookingId}}).\n\nPlease share your valuable feedback with us to help us serve yatris better!\n\nJai Kashi Vishwanath! 🚩',
         variables: ['customerName', 'bookingId'],
         isSystemDefault: true
     }

@@ -28,6 +28,21 @@ const {
     generateDocument, regenerateDocument, getDocuments, getDocumentById,
     archiveDocument, createDocumentToken, validateAccessToken, readDocumentFile
 } = require('./documents/documentService');
+const { createAuthMiddleware } = require('../auth/authMiddleware');
+const { ROLES, normalizeRole } = require('../auth/roles');
+const { registerUserRoutes } = require('../modules/users/userRoutes');
+const { registerTeamRoutes } = require('../modules/team/teamRoutes');
+const { createQrModels } = require('../modules/qr/qrModels');
+const { registerAreaRoutes } = require('../modules/qr/areaRoutes');
+const { registerQrRoutes } = require('../modules/qr/qrRoutes');
+const { registerQrPublicRoutes } = require('../modules/qr/qrPublicRoutes');
+const { registerQrAnalyticsRoutes } = require('../modules/qr/qrAnalytics');
+const { createAiModels } = require('../modules/ai/aiModels');
+const { registerAiRoutes } = require('../modules/ai/aiRoutes');
+const { registerCustomerAssistantRoutes } = require('../modules/ai/customerAssistantRoutes');
+const { registerSalesAssistantRoutes } = require('../modules/ai/salesAssistantRoutes');
+const { registerHunterRoutes } = require('../modules/ai/hunter/hunterRoutes');
+const { Counter, getNextSequence } = require('./utils/idSequence');
 
 const env = validateEnvironment();
 const app = express();
@@ -103,6 +118,10 @@ app.use((req, res, next) => {
 // 🗂️ MONGODB SCHEMAS (6 WORKFLOW COLLECTIONS FOR CRM MASTER)
 // =========================================================================
 const baseSchemaFields = {
+    leadId: { type: String, default: null, index: true },
+    customerId: { type: String, default: null, index: true },
+    followUpId: { type: String, default: null, index: true },
+    followUpTime: { type: String, default: '' },
     name: { type: String, required: true },
     mobile: { type: String, required: true },
     email: { type: String, default: 'offline-client@banarasyatra.com' },
@@ -154,7 +173,36 @@ const baseSchemaFields = {
     utmTerm: { type: String, default: '' },
     utmContent: { type: String, default: '' },
     landingPath: { type: String, default: '' },
-    capturedAt: { type: Date, default: Date.now }
+    capturedAt: { type: Date, default: Date.now },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedAt: { type: Date, default: null },
+    teamLeaderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    areaId: { type: String, default: null },
+    areaName: { type: String, default: '' },
+    qrType: { type: String, default: '' },
+    placementName: { type: String, default: '' },
+    venueName: { type: String, default: '' },
+    qrAttribution: { type: mongoose.Schema.Types.Mixed, default: null },
+    aiAssisted: { type: Boolean, default: false },
+    aiConversationId: { type: String, default: null, index: true },
+    aiRequirementSummary: { type: String, default: '' },
+    aiDetectedIntent: { type: String, default: '' },
+    aiServiceInterests: [{ type: String }],
+    aiInteraction: { type: mongoose.Schema.Types.Mixed, default: {} },
+    aiRecommendedStage: { type: String, default: 'NEW' },
+    aiQualification: { type: mongoose.Schema.Types.Mixed, default: null },
+    aiLastAnalyzedAt: { type: Date, default: null },
+    aiLastActionRecommended: { type: String, default: '' },
+    aiFollowUpRecommended: { type: Boolean, default: false },
+    aiFollowUpTiming: { type: String, default: '' },
+    opportunityId: { type: String, default: null, index: true },
+    aiHunter: { type: Boolean, default: false },
+    hunterMode: { type: String, default: null },
+    hunterConfidence: { type: Number, default: null },
+    hunterIntent: { type: String, default: '' },
+    hunterQualificationScore: { type: Number, default: null },
+    hunterPublicReference: { type: String, default: '' }
 };
 
 const HotelPartnerSchema = new mongoose.Schema({
@@ -178,7 +226,24 @@ const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, required: true, enum: ['CEO', 'Manager', 'MANAGER', 'ceo', 'manager'] },
+    role: { 
+        type: String, 
+        required: true, 
+        enum: ['CEO', 'Manager', 'MANAGER', 'ceo', 'manager', 'TEAM_LEADER', 'Team_Leader', 'TEAM_MEMBER', 'Team_Member'],
+        default: 'MANAGER'
+    },
+    reportsTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignment: {
+        teamName: { type: String, default: '' },
+        assignedAreas: { type: [String], default: [] },
+        maxActiveLeads: { type: Number, default: 50 }
+    },
+    permissions: { type: [String], default: [] },
+    status: {
+        type: String,
+        enum: ['ACTIVE', 'SUSPENDED', 'INACTIVE'],
+        default: 'ACTIVE'
+    },
     isActive: { type: Boolean, default: true },
     passwordChangeRequired: { type: Boolean, default: false },
     lastLoginAt: { type: Date, default: null },
@@ -218,10 +283,16 @@ const MessageTemplateSchema = new mongoose.Schema({
 
 async function initializeUsers() {
     try {
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction && (!process.env.CEO_INITIAL_PASSWORD || !process.env.MANAGER_INITIAL_PASSWORD)) {
+            console.error("❌ CRITICAL SECURITY ERROR: CEO_INITIAL_PASSWORD and MANAGER_INITIAL_PASSWORD are required in production!");
+            process.exit(1);
+        }
+
         const ceoEmail = process.env.CEO_EMAIL || 'ceo@banarasyatra.com';
-        const ceoPassword = process.env.CEO_INITIAL_PASSWORD || 'CeoSecurePass123!';
+        const ceoPassword = process.env.CEO_INITIAL_PASSWORD || (isProduction ? null : 'CeoSecurePass123!');
         const managerEmail = process.env.MANAGER_EMAIL || 'manager@banarasyatra.com';
-        const managerPassword = process.env.MANAGER_INITIAL_PASSWORD || 'ManagerSecurePass123!';
+        const managerPassword = process.env.MANAGER_INITIAL_PASSWORD || (isProduction ? null : 'ManagerSecurePass123!');
 
         // Seed CEO
         const existingCeo = await User.findOne({ role: 'CEO' });
@@ -282,6 +353,17 @@ async function initializeUsers() {
 
 const EnquirySchema = new mongoose.Schema(baseSchemaFields, { timestamps: true });
 
+EnquirySchema.pre('save', async function () {
+    if (this.isNew) {
+        if (!this.leadId) {
+            this.leadId = await getNextSequence('LEAD');
+        }
+        if (!this.customerId) {
+            this.customerId = await getNextSequence('CUSTOMER');
+        }
+    }
+});
+
 const Enquiry = mongoose.model('Enquiry', EnquirySchema, 'enquiries');
 const InProgressBooking = mongoose.model('InProgressBooking', EnquirySchema, 'inprogress_bookings');
 const ConfirmedBooking = mongoose.model('ConfirmedBooking', EnquirySchema, 'confirmed_bookings');
@@ -338,6 +420,12 @@ const QuoteSchema = new mongoose.Schema({
     termsNotes: { type: String, default: '' },
     createdBy: { type: String, default: 'Manager' }
 }, { timestamps: true });
+
+QuoteSchema.pre('save', async function () {
+    if (this.isNew && !this.quoteNumber) {
+        this.quoteNumber = await getNextSequence('QUOTE');
+    }
+});
 
 
 const VendorSchema = new mongoose.Schema({
@@ -426,6 +514,7 @@ const VendorSchema = new mongoose.Schema({
 
 const BookingSchema = new mongoose.Schema({
     bookingNumber: { type: String, required: true, unique: true },
+    tripId: { type: String, default: null, index: true },
     leadId: { type: String, required: true },
     quoteId: { type: String, required: true },
     customerId: { type: String, default: '' },
@@ -448,6 +537,14 @@ const BookingSchema = new mongoose.Schema({
         packageName: { type: String, default: 'Complete All-Inclusive Package' },
         finalCustomerPrice: { type: Number, default: 0 }
     },
+    source: { type: String, default: 'WEBSITE' },
+    partnerId: { type: String, default: null },
+    partnerName: { type: String, default: '' },
+    qrId: { type: String, default: null },
+    areaId: { type: String, default: null },
+    areaName: { type: String, default: '' },
+    qrType: { type: String, default: '' },
+    qrAttribution: { type: mongoose.Schema.Types.Mixed, default: null },
     services: [{
         serviceCategory: String,
         displayName: String,
@@ -531,6 +628,17 @@ const BookingSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
+BookingSchema.pre('save', async function () {
+    if (this.isNew) {
+        if (!this.bookingNumber) {
+            this.bookingNumber = await getNextSequence('BOOKING');
+        }
+        if (!this.tripId) {
+            this.tripId = await getNextSequence('TRIP');
+        }
+    }
+});
+
 // =========================================================================
 // 💳 PHASE 4 PROMPT 6 — PAYMENT, EXPENSE & REAL PROFIT SCHEMAS
 // =========================================================================
@@ -547,6 +655,12 @@ const CustomerPaymentSchema = new mongoose.Schema({
     status: { type: String, default: 'COMPLETED' },
     receivedBy: { type: String, default: '' }
 }, { timestamps: true });
+
+CustomerPaymentSchema.pre('save', async function () {
+    if (this.isNew && !this.paymentId) {
+        this.paymentId = await getNextSequence('PAYMENT');
+    }
+});
 
 const VendorPaymentSchema = new mongoose.Schema({
     paymentId: { type: String, required: true, unique: true },
@@ -583,6 +697,26 @@ const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
 const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
 // eslint-disable-next-line no-unused-vars
 const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+
+// 📍 Dynamic QR Network Models
+const { Area, QRRecord, QRScan } = createQrModels(mongoose);
+
+// 🤖 AI Foundation Models
+const { AIConfig, AIRun, AIAuditLog, AIOpportunity, AIAssistantSession, AISalesSession, AISalesRecommendation, AIFollowUpSuggestion, HunterSignal, HunterSource, HunterSourceRun, HunterRun } = createAiModels(mongoose);
+
+// ⚡ High-frequency performance query indexes
+EnquirySchema.index({ createdAt: -1 });
+EnquirySchema.index({ partnerId: 1 });
+BookingSchema.index({ createdAt: -1 });
+BookingSchema.index({ leadId: 1 });
+BookingSchema.index({ bookingNumber: 1 });
+QuoteSchema.index({ leadId: 1 });
+QuoteSchema.index({ createdAt: -1 });
+CustomerPaymentSchema.index({ bookingId: 1 });
+CustomerPaymentSchema.index({ leadId: 1 });
+VendorPaymentSchema.index({ vendorId: 1 });
+BusinessExpenseSchema.index({ createdAt: -1 });
+
 
 
 
@@ -629,7 +763,7 @@ const pinLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 500,
+    max: process.env.NODE_ENV === 'production' ? 20 : 500,
     message: { success: false, message: "Too many login attempts. Please try again after 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -663,36 +797,10 @@ const enquiryLimiter = rateLimit({
     skip: (req) => process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && (req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1')),
 });
 
-function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = (authHeader && authHeader.split(' ')[1]) || req.query.token;
-
-    if (!token) {
-        return res.status(401).json({ success: false, message: "Access token missing. Please log in." });
-    }
-
-    jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'], issuer: env.jwtIssuer, audience: env.jwtAudience }, (err, decoded) => {
-        if (err) {
-            return res.status(401).json({ success: false, message: "Session expired or invalid. Please log in again." });
-        }
-        req.user = decoded;
-        next();
-    });
-}
-
-function requireRole(roles) {
-    const roleList = Array.isArray(roles) ? roles.map(r => String(r).toUpperCase()) : [String(roles).toUpperCase()];
-    return (req, res, next) => {
-        if (!req.user || !req.user.role) {
-            return res.status(401).json({ success: false, message: "Unauthorized: Missing authentication token." });
-        }
-        const userRole = String(req.user.role).toUpperCase();
-        if (!roleList.includes(userRole)) {
-            return res.status(403).json({ success: false, message: "Forbidden: Insufficient permissions." });
-        }
-        next();
-    };
-}
+const authSystem = createAuthMiddleware(env, User, AuthSession);
+const authenticateToken = authSystem.authenticateToken;
+const requireRole = authSystem.requireRole;
+const requirePermission = authSystem.requirePermission;
 
 // 🔐 Secure Login Route (Supports both /admin/login and /auth/login)
 const handleLogin = async (req, res) => {
@@ -703,7 +811,7 @@ const handleLogin = async (req, res) => {
         }
 
         const user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user || !user.isActive) {
+        if (!user || !user.isActive || user.status === 'INACTIVE' || user.status === 'SUSPENDED') {
             return res.status(401).json({ success: false, message: "Invalid credentials or account is inactive." });
         }
 
@@ -714,11 +822,11 @@ const handleLogin = async (req, res) => {
 
         if (loginType) {
             const reqType = String(loginType).toUpperCase();
-            const userRole = String(user.role).toUpperCase();
-            if (reqType === 'CEO' && userRole !== 'CEO') {
+            const userRole = normalizeRole(user.role);
+            if (reqType === 'CEO' && userRole !== ROLES.CEO) {
                 return res.status(403).json({ success: false, message: "This email does not have CEO access." });
             }
-            if ((reqType === 'TEAM' || reqType === 'MANAGER') && userRole !== 'MANAGER') {
+            if ((reqType === 'TEAM' || reqType === 'MANAGER') && ![ROLES.MANAGER, ROLES.TEAM_LEADER, ROLES.TEAM_MEMBER].includes(userRole)) {
                 return res.status(403).json({ success: false, message: "This email does not have Team/Manager access." });
             }
         }
@@ -755,9 +863,13 @@ const handleLogin = async (req, res) => {
             refreshToken,
             user: {
                 id: user._id,
+                _id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role,
+                role: normalizeRole(user.role),
+                status: user.status || (user.isActive ? 'ACTIVE' : 'INACTIVE'),
+                assignment: user.assignment || null,
+                reportsTo: user.reportsTo || null,
                 lastLoginAt: user.lastLoginAt,
                 passwordChangeRequired: !!user.passwordChangeRequired
             }
@@ -825,9 +937,11 @@ const handleRefreshToken = async (req, res) => {
             refreshToken: newRefreshToken,
             user: {
                 id: user._id,
+                _id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: normalizeRole(user.role),
+                status: user.status || (user.isActive ? 'ACTIVE' : 'INACTIVE')
             }
         });
     } catch (error) {
@@ -871,9 +985,15 @@ app.get('/admin/verify-token', authenticateToken, (req, res) => {
     return res.status(200).json({
         success: true,
         user: {
+            id: req.user.id || req.user._id,
+            _id: req.user.id || req.user._id,
             name: req.user.name,
             email: req.user.email,
-            role: req.user.role
+            role: req.user.role,
+            status: req.user.status || 'ACTIVE',
+            assignment: req.user.assignment || null,
+            reportsTo: req.user.reportsTo || null,
+            permissions: req.user.permissions || []
         }
     });
 });
@@ -899,11 +1019,13 @@ app.post('/auth/forgot-password', loginLimiter, async (req, res) => {
         user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity
         await user.save();
 
-        console.log(`🔑 [AUTH] Password reset requested for ${user.email}. Reset Token: ${resetToken}`);
+        console.log(`🔑 [AUTH] Password reset requested for ${user.email}. Reset token generated securely.`);
 
         const responseData = {
             success: true,
-            message: "Password reset instructions have been generated."
+            emailDelivered: false,
+            deliveryStatus: 'SMTP_NOT_CONFIGURED',
+            message: "Password reset token generated. External SMTP email delivery is not configured in this environment. Configure SMTP credentials for automatic email dispatch."
         };
         if (!env.isProduction) {
             responseData.resetToken = resetToken;
@@ -992,136 +1114,68 @@ app.post('/auth/change-password', authenticateToken, async (req, res) => {
     }
 });
 
-// 👥 Admin User Management (CEO Only)
-app.get('/admin/users', authenticateToken, requireRole('CEO'), async (req, res) => {
-    try {
-        const users = await User.find({}, 'name email role isActive createdAt lastLoginAt passwordChangeRequired').sort({ createdAt: -1 });
-        return res.status(200).json({ success: true, users });
-    } catch (error) {
-        console.error("Fetch users error:", error);
-        return res.status(500).json({ success: false, message: "Failed to fetch user accounts." });
-    }
+// 👥 Modular User Lifecycle, Hierarchy & Team Routes
+registerUserRoutes(app, { User, AuthSession, Enquiry, authenticateToken, requireRole, requirePermission });
+registerTeamRoutes(app, { User, Enquiry, authenticateToken, requireRole });
+
+// 📍 Modular Dynamic QR Network Routes
+registerAreaRoutes(app, { Area, QRRecord, authenticateToken, requireRole });
+registerQrAnalyticsRoutes(app, { Area, QRRecord, Booking, authenticateToken, requireRole });
+registerQrRoutes(app, { Area, QRRecord, authenticateToken, requireRole });
+registerQrPublicRoutes(app, { QRRecord, QRScan });
+
+// 🤖 Modular AI Foundation & Control Center Routes
+registerAiRoutes(app, {
+    AIConfig,
+    AIRun,
+    AIAuditLog,
+    AIOpportunity,
+    Enquiry,
+    Customer: typeof Customer !== 'undefined' ? Customer : null,
+    Booking,
+    Quote: typeof Quote !== 'undefined' ? Quote : null,
+    authenticateToken,
+    requireRole
 });
 
-app.post('/admin/users', authenticateToken, requireRole('CEO'), async (req, res) => {
-    try {
-        const temporaryPassword = req.body.temporaryPassword || req.body.password;
-        const { name, email, role } = req.body;
-        if (!name || !email || !role || !temporaryPassword) {
-            return res.status(400).json({ success: false, message: "Name, email, role, and temporary password are required." });
-        }
-        const existing = await User.findOne({ email: email.toLowerCase().trim() });
-        if (existing) {
-            return res.status(409).json({ success: false, message: "A user with this email already exists." });
-        }
-        const salt = bcrypt.genSaltSync(10);
-        const passwordHash = bcrypt.hashSync(temporaryPassword, salt);
-        const newUser = new User({
-            name: name.trim(),
-            email: email.toLowerCase().trim(),
-            passwordHash,
-            role: role === 'CEO' ? 'CEO' : 'Manager',
-            isActive: true,
-            passwordChangeRequired: true
-        });
-        await newUser.save();
-        return res.status(201).json({
-            success: true,
-            message: "User account created successfully.",
-            user: {
-                id: newUser._id,
-                name: newUser.name,
-                email: newUser.email,
-                role: newUser.role,
-                isActive: newUser.isActive,
-                passwordChangeRequired: newUser.passwordChangeRequired,
-                createdAt: newUser.createdAt
-            }
-        });
-    } catch (error) {
-        console.error("Create user error:", error);
-        return res.status(500).json({ success: false, message: "Failed to create user account." });
-    }
+// 🤖 Customer AI Assistant Routes (Prompt 6)
+registerCustomerAssistantRoutes(app, {
+    AIAssistantSession,
+    AIConfig,
+    AIAuditLog,
+    Enquiry,
+    HotelPartner,
+    QRRecord,
+    authenticateToken,
+    requireRole
 });
 
-// 🔄 Toggle User Status (Activate / Deactivate) - CEO Only
-app.patch('/admin/users/:id/status', authenticateToken, requireRole('CEO'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { isActive } = req.body;
-        if (typeof isActive !== 'boolean') {
-            return res.status(400).json({ success: false, message: "isActive boolean value is required." });
-        }
-        if (String(req.user.id) === String(id) && !isActive) {
-            return res.status(400).json({ success: false, message: "You cannot deactivate your own executive account." });
-        }
-        const user = await User.findById(id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User account not found." });
-        }
-        user.isActive = isActive;
-        await user.save();
-
-        if (!isActive) {
-            // Revoke active sessions for deactivated user immediately
-            await AuthSession.updateMany({ userId: String(id) }, { $set: { revokedAt: new Date() } });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: `User account ${isActive ? 'activated' : 'deactivated'} successfully.`,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                isActive: user.isActive,
-                passwordChangeRequired: user.passwordChangeRequired
-            }
-        });
-    } catch (error) {
-        console.error("Update user status error:", error);
-        return res.status(500).json({ success: false, message: "Failed to update user account status." });
-    }
+// 🤖 AI Sales Assistant Routes (Prompt 7)
+registerSalesAssistantRoutes(app, {
+    AIConfig,
+    AIAuditLog,
+    AISalesSession,
+    AISalesRecommendation,
+    AIFollowUpSuggestion,
+    Enquiry,
+    Quote: typeof Quote !== 'undefined' ? Quote : null,
+    authenticateToken,
+    requireRole
 });
 
-// 🔑 Reset User Password with Temporary Password - CEO Only
-app.post('/admin/users/:id/reset-password', authenticateToken, requireRole('CEO'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const temporaryPassword = req.body.temporaryPassword || req.body.password;
-        if (!temporaryPassword || temporaryPassword.length < 8) {
-            return res.status(400).json({ success: false, message: "Temporary password (min. 8 characters) is required." });
-        }
-        const user = await User.findById(id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User account not found." });
-        }
-        const salt = bcrypt.genSaltSync(10);
-        user.passwordHash = bcrypt.hashSync(temporaryPassword, salt);
-        user.passwordChangeRequired = true;
-        await user.save();
-
-        // Invalidate all existing active sessions
-        await AuthSession.updateMany({ userId: String(id) }, { $set: { revokedAt: new Date() } });
-
-        return res.status(200).json({
-            success: true,
-            message: "Temporary password set successfully. User must change password upon next login.",
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                isActive: user.isActive,
-                passwordChangeRequired: user.passwordChangeRequired
-            }
-        });
-    } catch (error) {
-        console.error("Reset user password error:", error);
-        return res.status(500).json({ success: false, message: "Failed to reset user password." });
-    }
-});
+// 🤖 AI Customer Hunter Routes (Prompt 8 & 9)
+registerHunterRoutes(app, {
+    HunterSignal,
+    HunterSource,
+    HunterSourceRun,
+    HunterRun,
+    AIOpportunity,
+    Enquiry,
+    Lead: typeof Lead !== 'undefined' ? Lead : Enquiry,
+    Booking,
+    AIConfig,
+    AIAuditLog
+}, authenticateToken);
 
 // Routes
 app.post('/admin/verify-pin', pinLimiter, (req, res) => {
@@ -1153,7 +1207,12 @@ app.post('/api/enquiry', enquiryLimiter, async (req, res) => {
             remarks: 'New lead enquiry received via customer portal'
         }];
 
+        const leadId = await getNextSequence('LEAD');
+        const customerId = await getNextSequence('CUSTOMER');
+
         const newLead = new Enquiry({
+            leadId,
+            customerId,
             name,
             mobile,
             email: email || 'offline-client@banarasyatra.com',
@@ -1177,7 +1236,7 @@ app.post('/api/enquiry', enquiryLimiter, async (req, res) => {
                 subject: `🟡 New Website Inquiry Alert: ${name}`,
                 html: `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1.5px solid #f59e0b; border-radius: 16px; background-color: #fafaf9; color: #1c1917;">
     <div style="text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 15px; margin-bottom: 20px;">
-        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 VARANASI YATRA</h2>
+        <h2 style="color: #d97706; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">🚩 KASHI-VASHI</h2>
         <p style="color: #78716c; margin: 5px 0 0 0; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">New Website Travel Enquiry Received</p>
     </div>
 
@@ -1276,7 +1335,19 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
             }
         }
 
-        // 3. Fast Duplicate Submission Protection (60-second window)
+        // 3. Fast Duplicate Submission Protection (60-second window or AI conversation idempotency)
+        if (body.aiConversationId) {
+            const existingAiLead = await Enquiry.findOne({ aiConversationId: String(body.aiConversationId).trim() });
+            if (existingAiLead) {
+                return res.status(200).json({
+                    success: true,
+                    message: "Your trip enquiry has already been received.",
+                    leadId: existingAiLead._id,
+                    duplicate: true
+                });
+            }
+        }
+
         const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);
         const existingRecentLead = await Enquiry.findOne({
             mobile: cleanPhone,
@@ -1292,10 +1363,15 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
             });
         }
 
-        // 4. Partner Attribution Resolution
+        // 4. Partner & Area QR Attribution Resolution
         let partnerId = body.partnerId ? String(body.partnerId).toLowerCase().trim() : null;
         let partnerName = '';
         let source = body.source ? String(body.source).toUpperCase().trim() : (partnerId ? 'HOTEL_QR' : 'WEBSITE');
+        let qrId = body.qrId ? String(body.qrId).trim() : (partnerId || null);
+        let areaId = null;
+        let areaName = '';
+        let qrType = '';
+        let qrAttribution = null;
 
         if (partnerId) {
             const partner = await HotelPartner.findOne({ partnerCode: partnerId });
@@ -1306,8 +1382,61 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
             }
         }
 
+        // Validate and attribute Area QR
+        let placementName = typeof body.placementName === 'string' ? body.placementName.trim() : (body.qrAttribution?.placementName || '');
+        let venueName = typeof body.venueName === 'string' ? body.venueName.trim() : (body.qrAttribution?.venueName || '');
+
+        if (source === 'AREA_QR' || (!partnerId && qrId && qrId.includes('-'))) {
+            const qrToken = qrId ? String(qrId).toUpperCase().trim() : '';
+            if (qrToken && QRRecord) {
+                const qrDoc = await QRRecord.findOne({ qrId: qrToken });
+                if (qrDoc && ['ACTIVE', 'INSTALLED', 'GENERATED'].includes(qrDoc.status)) {
+                    source = 'AREA_QR';
+                    qrId = qrDoc.qrId;
+                    areaId = String(qrDoc.areaId);
+                    areaName = qrDoc.areaName;
+                    qrType = qrDoc.qrType;
+                    qrAttribution = {
+                        qrId: qrDoc.qrId,
+                        areaId: String(qrDoc.areaId),
+                        areaName: qrDoc.areaName,
+                        qrType: qrDoc.qrType,
+                        placementName: placementName || qrDoc.placementName || '',
+                        venueName: venueName || qrDoc.venueName || ''
+                    };
+                    await QRRecord.updateOne({ qrId: qrDoc.qrId }, { $inc: { leadCount: 1 } });
+                } else if (body.qrAttribution && body.qrAttribution.qrId) {
+                    source = 'AREA_QR';
+                    qrId = String(body.qrAttribution.qrId).toUpperCase().trim();
+                    areaId = body.qrAttribution.areaId ? String(body.qrAttribution.areaId) : null;
+                    areaName = body.qrAttribution.areaName || body.areaName || '';
+                    qrType = body.qrAttribution.qrType || body.qrType || '';
+                    qrAttribution = {
+                        qrId,
+                        areaId,
+                        areaName,
+                        qrType,
+                        placementName: placementName || body.qrAttribution.placementName || '',
+                        venueName: venueName || body.qrAttribution.venueName || ''
+                    };
+                } else if (source === 'AREA_QR') {
+                    source = 'AREA_QR';
+                    areaName = body.areaName || '';
+                    qrType = body.qrType || '';
+                    qrAttribution = {
+                        qrId: qrToken || qrId,
+                        areaId: areaId || null,
+                        areaName: areaName,
+                        qrType: qrType,
+                        placementName: placementName || '',
+                        venueName: venueName || ''
+                    };
+                }
+            }
+        }
+
         // Normalize source
-        const validSources = ['WEBSITE', 'HOTEL_QR', 'WHATSAPP', 'OFFLINE', 'MANUAL', 'PARTNER'];
+        const validSources = ['WEBSITE', 'HOTEL_QR', 'AREA_QR', 'WHATSAPP', 'OFFLINE', 'MANUAL', 'PARTNER'];
         if (!validSources.includes(source)) {
             source = 'WEBSITE';
         }
@@ -1335,7 +1464,12 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
             : (typeof body.specialRequirements === 'string' ? body.specialRequirements.trim() : '');
 
         // 6. Safe CRM-Compatible Lead Creation (Strictly strip all internal privileged fields)
+        const leadId = await getNextSequence('LEAD');
+        const customerId = await getNextSequence('CUSTOMER');
+
         const newLead = new Enquiry({
+            leadId,
+            customerId,
             name,
             mobile: cleanPhone,
             email: cleanEmail,
@@ -1350,10 +1484,16 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
             
             // Attribution
             source,
-            leadSource: source === 'HOTEL_QR' ? 'QR' : (source === 'WHATSAPP' ? 'Offline/Manual' : 'Website'),
+            leadSource: (source === 'HOTEL_QR' || source === 'AREA_QR' || qrId) ? 'QR' : (source === 'WHATSAPP' ? 'Offline/Manual' : (body.leadSource || 'Website')),
             partnerId: partnerId || null,
             partnerName: partnerName || '',
-            qrId: body.qrId ? String(body.qrId).trim() : (partnerId || null),
+            qrId,
+            areaId,
+            areaName,
+            qrType,
+            placementName,
+            venueName,
+            qrAttribution,
             utmSource: body.utm?.source ? String(body.utm.source).trim() : (body.utmSource || ''),
             utmMedium: body.utm?.medium ? String(body.utm.medium).trim() : (body.utmMedium || ''),
             utmCampaign: body.utm?.campaign ? String(body.utm.campaign).trim() : (body.utmCampaign || ''),
@@ -1362,15 +1502,27 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
             landingPath: typeof body.landingPath === 'string' ? body.landingPath.trim() : '',
             capturedAt: new Date(),
 
+            // Additive AI Customer Assistant Metadata (Prompt 6)
+            aiAssisted: Boolean(body.aiAssisted),
+            aiConversationId: body.aiConversationId ? String(body.aiConversationId).trim() : null,
+            aiRequirementSummary: body.aiRequirementSummary ? String(body.aiRequirementSummary).trim() : '',
+            aiDetectedIntent: body.aiDetectedIntent ? String(body.aiDetectedIntent).trim() : '',
+            aiServiceInterests: Array.isArray(body.aiServiceInterests) ? body.aiServiceInterests : [],
+            aiInteraction: typeof body.aiInteraction === 'object' ? body.aiInteraction : {},
+
             // Initial CRM State
-            createdBy: source === 'HOTEL_QR' ? `Hotel Partner (${partnerName || partnerId})` : 'Website Public Lead',
+            createdBy: body.aiAssisted 
+                ? `AI Customer Assistant (${source})`
+                : (source === 'HOTEL_QR' ? `Hotel Partner (${partnerName || partnerId})` : (source === 'AREA_QR' ? `Area QR (${areaName} - ${qrId})` : 'Website Public Lead')),
             stage: 'NEW',
             status: 'Pending',
             activityHistory: [{
                 timestamp: new Date().toISOString(),
-                action: 'PUBLIC_LEAD_CREATED',
-                actor: 'Public Portal',
-                details: `Lead created via ${source}${partnerName ? ' (' + partnerName + ')' : ''}`
+                action: body.aiAssisted ? 'AI_ASSISTED_LEAD_CREATED' : 'PUBLIC_LEAD_CREATED',
+                actor: body.aiAssisted ? 'AI Customer Assistant' : 'Public Portal',
+                details: body.aiAssisted 
+                    ? `Lead qualified via AI Customer Assistant with ${source} attribution`
+                    : `Lead created via ${source}${partnerName ? ' (' + partnerName + ')' : (areaName ? ' (' + areaName + ')' : '')}`
             }],
             statusHistory: [{
                 previousStatus: 'None',
@@ -1390,7 +1542,7 @@ app.post('/public/leads', enquiryLimiter, async (req, res) => {
                 to: process.env.EMAIL_USER,
                 subject: `🟡 New ${source === 'HOTEL_QR' ? `Hotel QR Lead (${partnerName || partnerId})` : 'Website Lead'}: ${name}`,
                 html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #f59e0b; border-radius: 10px;">
-                    <h3>🚩 New Varanasi Yatra Enquiry (${source})</h3>
+                    <h3>🚩 New Kashi-Vashi Enquiry (${source})</h3>
                     <p><strong>Name:</strong> ${name}</p>
                     <p><strong>Mobile:</strong> ${cleanPhone}</p>
                     <p><strong>Partner:</strong> ${partnerName || 'None'}</p>
@@ -1452,16 +1604,23 @@ app.post('/public/partners/:partnerCode/scan', async (req, res) => {
     }
 });
 
-// 🏨 CEO: List Hotel Partners with Real Lead Counts
+// 🏨 CEO: List Hotel Partners with Real Lead Counts (Optimized: Single aggregation eliminates N+1)
 app.get('/admin/hotel-partners', authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
-        const partners = await HotelPartner.find().sort({ createdAt: -1 }).lean();
-        const enriched = await Promise.all(partners.map(async (p) => {
-            const leadCount = await Enquiry.countDocuments({ partnerId: p.partnerCode });
-            return {
-                ...p,
-                leadsCount: leadCount
-            };
+        const [partners, counts] = await Promise.all([
+            HotelPartner.find().sort({ createdAt: -1 }).lean(),
+            Enquiry.aggregate([
+                { $match: { partnerId: { $exists: true, $ne: null } } },
+                { $group: { _id: '$partnerId', count: { $sum: 1 } } }
+            ])
+        ]);
+        const countMap = {};
+        counts.forEach(c => {
+            if (c._id) countMap[c._id] = c.count;
+        });
+        const enriched = partners.map(p => ({
+            ...p,
+            leadsCount: countMap[p.partnerCode] || 0
         }));
         return res.status(200).json({ success: true, data: enriched });
     } catch (err) {
@@ -1534,15 +1693,15 @@ app.patch('/admin/hotel-partners/:id', authenticateToken, requireRole(['CEO']), 
     }
 });
 
-// 📊 2. Fetch All Combined Leads for CRM Dashboard across 6 workflow collections
+// 📊 2. Fetch Combined Leads for CRM Dashboard across 6 workflow collections (Safe Pagination & Filtering)
 app.get('/admin/enquiries', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const allLeads = await fetchAllLeadsAcrossCollections();
 
         // Filter sensitive financial data based on role
         const role = req.user.role;
-        const filteredLeads = allLeads.map(lead => {
-            const leadObj = lead.toObject();
+        let filteredLeads = allLeads.map(lead => {
+            const leadObj = lead.toObject ? lead.toObject() : { ...lead };
             if (role !== 'CEO') {
                 // Ensure no sensitive lead or company financial fields leak to Manager
                 delete leadObj.totalAmount;
@@ -1562,7 +1721,40 @@ app.get('/admin/enquiries', authenticateToken, requireRole(['CEO', 'Manager']), 
             return leadObj;
         });
 
-        return res.status(200).json({ success: true, data: filteredLeads });
+        // Filter by status if specified
+        if (req.query.status && req.query.status !== 'All') {
+            filteredLeads = filteredLeads.filter(l => (l.status || '').toLowerCase() === req.query.status.toLowerCase());
+        }
+        // Filter by search term if specified
+        if (req.query.search) {
+            const q = req.query.search.toLowerCase();
+            filteredLeads = filteredLeads.filter(l =>
+                (l.name && l.name.toLowerCase().includes(q)) ||
+                (l.mobile && l.mobile.includes(q)) ||
+                (l.email && l.email.toLowerCase().includes(q))
+            );
+        }
+
+        const total = filteredLeads.length;
+        const page = req.query.page ? Math.max(1, parseInt(req.query.page, 10)) : 1;
+        // Default 25 per page if page requested; 100 max for legacy calls
+        const defaultLimit = req.query.page ? 25 : 100;
+        const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || defaultLimit), 100);
+        const totalPages = Math.ceil(total / limit) || 1;
+        const startIndex = (page - 1) * limit;
+        const pagedLeads = filteredLeads.slice(startIndex, startIndex + limit);
+
+        return res.status(200).json({
+            success: true,
+            data: pagedLeads,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasMore: page < totalPages
+            }
+        });
     } catch (error) {
         console.error("❌ Fetch Enquiries Error:", error);
         return res.status(500).json({ success: false, message: "Error fetching leads." });
@@ -1575,7 +1767,7 @@ app.post('/admin/enquiry/update/:id', authenticateToken, requireRole(['CEO', 'Ma
         const {
             name, mobile, email, date, travelers, city, leadSource, tripDuration, requirements,
             status, totalAmount, advanceAmount,
-            cancellationReason, followUpDate, adminNotes,
+            cancellationReason, followUpDate, followUpTime, adminNotes,
             destination, specialRequirements,
             driverName, driverMobile, vehicleModel, vehicleNumber,
             hotelDetails, panditDetails, documents, remarks
@@ -1627,6 +1819,11 @@ app.post('/admin/enquiry/update/:id', authenticateToken, requireRole(['CEO', 'Ma
         }
         const rem = tot - adv;
 
+        let followUpIdToSet = doc.followUpId || null;
+        if (followUpDate && !followUpIdToSet) {
+            followUpIdToSet = await getNextSequence('FOLLOWUP');
+        }
+
         const updateFields = {
             ...(name ? { name } : {}),
             ...(mobile ? { mobile } : {}),
@@ -1643,6 +1840,8 @@ app.post('/admin/enquiry/update/:id', authenticateToken, requireRole(['CEO', 'Ma
             remainingAmount: rem,
             cancellationReason: cancellationReason !== undefined ? cancellationReason : (doc.cancellationReason || ''),
             followUpDate: followUpDate !== undefined ? followUpDate : (doc.followUpDate || ''),
+            followUpTime: followUpTime !== undefined ? followUpTime : (doc.followUpTime || ''),
+            ...(followUpIdToSet ? { followUpId: followUpIdToSet } : {}),
             adminNotes: adminNotes !== undefined ? adminNotes : (doc.adminNotes || ''),
             destination: destination || doc.destination || 'Varanasi',
             specialRequirements: specialRequirements !== undefined ? specialRequirements : (doc.specialRequirements || ''),
@@ -1883,10 +2082,19 @@ app.post('/admin/quote/create', authenticateToken, requireRole(['CEO', 'Manager'
         const nextVersion = existingQuotes.length > 0 ? (existingQuotes[0].version + 1) : 1;
         const quoteNumber = existingQuotes.length > 0
             ? existingQuotes[0].quoteNumber
-            : `VY-Q-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+            : await getNextSequence('QUOTE');
 
         // Calculate Financials Server-Side supporting Commercial Models
         const validServices = Array.isArray(servicesList) ? servicesList : [];
+
+        // Validate that no service line item has an empty label
+        for (const s of validServices) {
+            const label = (s.customerDisplayName !== undefined ? s.customerDisplayName : s.serviceName) || '';
+            if (typeof label === 'string' && !label.trim()) {
+                return res.status(400).json({ success: false, message: "Item name is required for all line items." });
+            }
+        }
+
         const numericDiscount = Number(discount) || 0;
         const hasCommercialModel = validServices.some(s => 
             s.commercialModel !== undefined || 
@@ -2122,13 +2330,33 @@ app.get('/admin/quote/customer-view/:id', async (req, res) => {
 // 🚖 PHASE 4 PROMPT 4 — BOOKING API ENDPOINTS
 // =========================================================================
 
-// 1. Fetch all Bookings
+// 1. Fetch Bookings (Safe Server-Side Pagination)
 app.get('/admin/bookings', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
-        const bookings = await Booking.find().sort({ createdAt: -1 });
+        const total = await Booking.countDocuments();
+        const page = req.query.page ? Math.max(1, parseInt(req.query.page, 10)) : 1;
+        const defaultLimit = req.query.page ? 25 : 100;
+        const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || defaultLimit), 100);
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        const bookings = await Booking.find()
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
         const finalBookings = req.user.role === 'CEO' ? bookings : bookings.map(sanitizeBookingForManager);
-        return res.status(200).json({ success: true, bookings: finalBookings });
+        return res.status(200).json({
+            success: true,
+            bookings: finalBookings,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasMore: page < totalPages
+            }
+        });
     } catch (error) {
         console.error("❌ Fetch Bookings Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch bookings." });
@@ -2204,22 +2432,8 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
             if (targetLead) break;
         }
 
-        let bookingNumber;
-        const year = new Date().getFullYear();
-        let retryBookingCount = 0;
-        while (retryBookingCount < 5) {
-            const count = await Booking.countDocuments();
-            const candidate = `VY-B-${year}-${String(1001 + count + retryBookingCount).padStart(4, '0')}`;
-            const exists = await Booking.findOne({ bookingNumber: candidate });
-            if (!exists) {
-                bookingNumber = candidate;
-                break;
-            }
-            retryBookingCount++;
-        }
-        if (!bookingNumber) {
-            bookingNumber = `VY-B-${year}-${Date.now().toString().slice(-6)}`;
-        }
+        const bookingNumber = await getNextSequence('BOOKING');
+        const tripId = await getNextSequence('TRIP');
 
         // Map Quote services into Preparation Checklist items with Commercial Model snapshot
         const services = (quote.servicesList || []).map(s => ({
@@ -2297,9 +2511,10 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
 
         const newBooking = new Booking({
             bookingNumber,
+            tripId,
             leadId: quote.leadId,
             quoteId: quote._id,
-            customerId: targetLead?._id || '',
+            customerId: targetLead?.customerId || targetLead?._id || '',
             customerDetails: {
                 name: targetLead?.name || 'Valued Client',
                 phone: targetLead?.mobile || '',
@@ -2346,6 +2561,14 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
                 actualProfit: 0,
                 profitStatus: 'ESTIMATED'
             },
+            source: targetLead?.source || 'WEBSITE',
+            partnerId: targetLead?.partnerId || null,
+            partnerName: targetLead?.partnerName || '',
+            qrId: targetLead?.qrId || null,
+            areaId: targetLead?.areaId || null,
+            areaName: targetLead?.areaName || '',
+            qrType: targetLead?.qrType || '',
+            qrAttribution: targetLead?.qrAttribution || null,
             activityHistory: [{
                 type: 'CREATE',
                 message: `Booking ${bookingNumber} created from accepted quote ${quote.quoteNumber}.`,
@@ -2355,6 +2578,23 @@ app.post('/admin/booking/create', authenticateToken, requireRole(['CEO', 'Manage
         });
 
         await newBooking.save();
+
+        // Increment QR booking metrics if from Area QR
+        if (targetLead?.qrId && QRRecord) {
+            try {
+                await QRRecord.updateOne(
+                    { qrId: targetLead.qrId },
+                    {
+                        $inc: {
+                            bookingCount: 1,
+                            revenueGenerated: Number(quote.finalCustomerPrice) || 0
+                        }
+                    }
+                );
+            } catch (qrErr) {
+                console.warn("Could not update QR booking stats:", qrErr.message);
+            }
+        }
 
         // Update target Lead stage to WON & status to Confirmed
         if (targetLead) {
@@ -2876,14 +3116,15 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
             }
 
             if (targetLead) {
-                const year = new Date().getFullYear();
-                const bookingNumber = `VY-B-${year}-${Date.now().toString().slice(-4)}`;
+                const bookingNumber = await getNextSequence('BOOKING');
+                const tripId = await getNextSequence('TRIP');
                 const pkgPrice = Number(targetLead.totalAmount) || Number(targetLead.advancePaid) || numAmount;
 
                 booking = new Booking({
                     bookingNumber,
+                    tripId,
                     leadId: targetLead._id.toString(),
-                    customerId: targetLead._id.toString(),
+                    customerId: targetLead.customerId || targetLead._id.toString(),
                     customerDetails: {
                         name: targetLead.name || 'Valued Client',
                         phone: targetLead.mobile || '',
@@ -2896,7 +3137,7 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
                         tripDuration: '3 Days / 2 Nights'
                     },
                     packageDetails: {
-                        packageName: targetLead.destination ? `${targetLead.destination} Special` : 'Varanasi Yatra Package',
+                        packageName: targetLead.destination ? `${targetLead.destination} Special` : 'Kashi-Vashi Package',
                         packageType: 'CUSTOM',
                         finalCustomerPrice: pkgPrice
                     },
@@ -2916,7 +3157,7 @@ app.post('/admin/booking/customer-payment', financialLimiter, authenticateToken,
             return res.status(404).json({ success: false, message: "Booking not found." });
         }
 
-        const paymentId = `PAY-CUST-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const paymentId = await getNextSequence('PAYMENT');
         const newPayment = new CustomerPayment({
             paymentId,
             bookingId: booking._id.toString(),
@@ -3281,15 +3522,17 @@ app.get('/admin/booking/:bookingId/financial-summary', authenticateToken, requir
 // 📊 PHASE 4 PROMPT 7 — ROLE-BASED DASHBOARD INTELLIGENCE ENDPOINTS
 // =========================================================================
 
-// 1. MANAGER OPERATIONS CENTER ENDPOINT (CEO & Manager Allowed)
+// 1. MANAGER OPERATIONS CENTER ENDPOINT (CEO & Manager Allowed - Optimized with Promise.all)
 app.get(['/admin/dashboard/manager', '/admin/manager-dashboard'], authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
         const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
 
-        const bookings = await Booking.find().sort({ createdAt: -1 });
-        const leads = await fetchAllLeadsAcrossCollections();
-        const quotes = await Quote.find().sort({ createdAt: -1 });
+        const [bookings, leads, quotes] = await Promise.all([
+            Booking.find().sort({ createdAt: -1 }),
+            fetchAllLeadsAcrossCollections(),
+            Quote.find().sort({ createdAt: -1 })
+        ]);
 
         // Sanitized Operational Summary (No vendor costs, actual profits, or margins)
         const sanitizedBookings = bookings.map(b => ({
@@ -3374,7 +3617,7 @@ app.get(['/admin/dashboard/manager', '/admin/manager-dashboard'], authenticateTo
     }
 });
 
-// 2. CEO COMMAND CENTER ENDPOINT (CEO ROLE ONLY - 403 FORBIDDEN FOR MANAGER)
+// 2. CEO COMMAND CENTER ENDPOINT (CEO ROLE ONLY - 403 FORBIDDEN FOR MANAGER - Parallelized)
 app.get(['/admin/dashboard/ceo', '/admin/ceo-dashboard'], authenticateToken, requireRole(['CEO']), async (req, res) => {
     try {
         const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
@@ -3384,13 +3627,23 @@ app.get(['/admin/dashboard/ceo', '/admin/ceo-dashboard'], authenticateToken, req
         const VendorPayment = mongoose.model('VendorPayment', VendorPaymentSchema, 'vendor_payments');
         const BusinessExpense = mongoose.model('BusinessExpense', BusinessExpenseSchema, 'business_expenses');
 
-        const bookings = await Booking.find().sort({ createdAt: -1 });
-        const leads = await fetchAllLeadsAcrossCollections();
-        const quotes = await Quote.find().sort({ createdAt: -1 });
-        const vendors = await Vendor.find().sort({ createdAt: -1 });
-        const customerPayments = await CustomerPayment.find().sort({ createdAt: -1 });
-        const vendorPayments = await VendorPayment.find().sort({ createdAt: -1 });
-        const expenses = await BusinessExpense.find().sort({ createdAt: -1 });
+        const [
+            bookings,
+            leads,
+            quotes,
+            vendors,
+            customerPayments,
+            vendorPayments,
+            expenses
+        ] = await Promise.all([
+            Booking.find().sort({ createdAt: -1 }),
+            fetchAllLeadsAcrossCollections(),
+            Quote.find().sort({ createdAt: -1 }),
+            Vendor.find().sort({ createdAt: -1 }),
+            CustomerPayment.find().sort({ createdAt: -1 }),
+            VendorPayment.find().sort({ createdAt: -1 }),
+            BusinessExpense.find().sort({ createdAt: -1 })
+        ]);
 
         return res.status(200).json({
             success: true,
@@ -3406,6 +3659,296 @@ app.get(['/admin/dashboard/ceo', '/admin/ceo-dashboard'], authenticateToken, req
     } catch (error) {
         console.error("❌ Fetch CEO Dashboard Error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch CEO dashboard." });
+    }
+});
+
+// =========================================================================
+// 👥 CUSTOMER 360 AGGREGATION ENGINE (Server-Side Synthesis & Privacy)
+// =========================================================================
+
+// 1. Fetch All Aggregated Customers with Pagination
+app.get('/admin/customers', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+
+        const [bookings, leads, quotes] = await Promise.all([
+            Booking.find().sort({ createdAt: -1 }),
+            fetchAllLeadsAcrossCollections(),
+            Quote.find().sort({ createdAt: -1 })
+        ]);
+
+        const role = req.user.role;
+        const customerMap = new Map();
+
+        // 1. Process Leads
+        leads.forEach((l) => {
+            const leadObj = l.toObject ? l.toObject() : { ...l };
+            if (role !== 'CEO') {
+                delete leadObj.vendorCost;
+                delete leadObj.margin;
+                delete leadObj.profit;
+                delete leadObj.expectedProfit;
+                delete leadObj.profitMargin;
+                delete leadObj.companyExpense;
+                delete leadObj.agentCommission;
+                delete leadObj.salary;
+                delete leadObj.vendorPayable;
+                delete leadObj.ceoOnlyNotes;
+            }
+            const phone = (leadObj.phone || leadObj.mobile || '').replace(/\D/g, '');
+            const email = (leadObj.email || '').toLowerCase().trim();
+            const key = phone || email || leadObj._id.toString();
+
+            if (!customerMap.has(key)) {
+                customerMap.set(key, {
+                    id: leadObj._id.toString(),
+                    name: leadObj.name || 'Guest',
+                    phone: leadObj.phone || leadObj.mobile || '—',
+                    email: leadObj.email || '—',
+                    city: leadObj.city || leadObj.destination || 'Varanasi',
+                    createdAt: leadObj.createdAt,
+                    leads: [leadObj],
+                    quotes: [],
+                    bookings: [],
+                    payments: [],
+                    trips: []
+                });
+            } else {
+                customerMap.get(key).leads.push(leadObj);
+            }
+        });
+
+        // 2. Associate Quotes
+        quotes.forEach((q) => {
+            const qObj = q.toObject ? q.toObject() : { ...q };
+            if (role !== 'CEO') {
+                delete qObj.totalVendorCost;
+                delete qObj.expectedProfit;
+                delete qObj.companyMargin;
+                delete qObj.marginPercentage;
+                delete qObj.vendorCost;
+                delete qObj.vendorPayable;
+                delete qObj.ceoOnlyNotes;
+            }
+            const qLeadId = (qObj.leadId || qObj.customerId || '').toString();
+            let matched = false;
+            for (const cust of customerMap.values()) {
+                if (cust.leads.some(l => l._id.toString() === qLeadId) || cust.id === qLeadId) {
+                    cust.quotes.push(qObj);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched && (qObj.customerName || qObj.customerPhone)) {
+                const phone = (qObj.customerPhone || '').replace(/\D/g, '');
+                const key = phone || qObj._id.toString();
+                if (!customerMap.has(key)) {
+                    customerMap.set(key, {
+                        id: qObj._id.toString(),
+                        name: qObj.customerName || 'Guest',
+                        phone: qObj.customerPhone || '—',
+                        email: qObj.customerEmail || '—',
+                        city: 'Varanasi',
+                        createdAt: qObj.createdAt,
+                        leads: [],
+                        quotes: [qObj],
+                        bookings: [],
+                        payments: [],
+                        trips: []
+                    });
+                } else {
+                    customerMap.get(key).quotes.push(qObj);
+                }
+            }
+        });
+
+        // 3. Associate Bookings
+        bookings.forEach((b) => {
+            const bObj = role === 'CEO' ? (b.toObject ? b.toObject() : { ...b }) : sanitizeBookingForManager(b);
+            const bLeadId = (bObj.leadId || bObj.customerId || '').toString();
+            const bPhone = (bObj.customerDetails?.phone || bObj.phone || '').replace(/\D/g, '');
+            let matched = false;
+
+            for (const cust of customerMap.values()) {
+                const custPhone = cust.phone.replace(/\D/g, '');
+                if ((bPhone && custPhone && bPhone === custPhone) || cust.leads.some(l => l._id.toString() === bLeadId) || cust.id === bLeadId) {
+                    cust.bookings.push(bObj);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                const key = bPhone || bObj._id.toString();
+                customerMap.set(key, {
+                    id: bObj._id.toString(),
+                    name: bObj.customerDetails?.name || bObj.name || 'Guest',
+                    phone: bObj.customerDetails?.phone || bObj.phone || '—',
+                    email: bObj.customerDetails?.email || bObj.email || '—',
+                    city: bObj.customerDetails?.city || 'Varanasi',
+                    createdAt: bObj.createdAt,
+                    leads: [],
+                    quotes: [],
+                    bookings: [bObj],
+                    payments: [],
+                    trips: []
+                });
+            }
+        });
+
+        // Calculate lifetime values
+        let customerList = Array.from(customerMap.values()).map((c) => {
+            let totalVal = 0;
+            let totalPaid = 0;
+
+            c.bookings.forEach((b) => {
+                const bVal = Number(b.packageDetails?.finalCustomerPrice || b.customerPaymentSummary?.packagePrice || b.totalAmount || 0);
+                const bPaid = Number(b.customerPaymentSummary?.totalPaid !== undefined ? b.customerPaymentSummary.totalPaid : (b.advanceAmount || 0));
+                totalVal += bVal;
+                totalPaid += bPaid;
+            });
+
+            if (c.bookings.length === 0 && c.quotes.length > 0) {
+                totalVal = Number(c.quotes[0].finalCustomerPrice || 0);
+            }
+
+            return {
+                ...c,
+                totalValue: totalVal,
+                totalPaid: totalPaid,
+                remainingDue: Math.max(0, totalVal - totalPaid)
+            };
+        });
+
+        // Optional search filtering
+        if (req.query.search) {
+            const q = req.query.search.toLowerCase().trim();
+            customerList = customerList.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                c.phone.includes(q) ||
+                c.email.toLowerCase().includes(q) ||
+                c.city.toLowerCase().includes(q)
+            );
+        }
+
+        const total = customerList.length;
+        const page = req.query.page ? Math.max(1, parseInt(req.query.page, 10)) : 1;
+        const defaultLimit = req.query.page ? 25 : 50;
+        const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || defaultLimit), 100);
+        const totalPages = Math.ceil(total / limit) || 1;
+        const startIndex = (page - 1) * limit;
+        const pagedCustomers = customerList.slice(startIndex, startIndex + limit);
+
+        return res.status(200).json({
+            success: true,
+            customers: pagedCustomers,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasMore: page < totalPages
+            }
+        });
+    } catch (error) {
+        console.error("❌ Fetch Customers Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch customers." });
+    }
+});
+
+// 2. Fetch Single Customer Profile by ID
+app.get('/admin/customers/:id', authenticateToken, requireRole(['CEO', 'Manager']), async (req, res) => {
+    try {
+        const customerId = req.params.id;
+        const Booking = mongoose.model('Booking', BookingSchema, 'bookings');
+        const Quote = mongoose.model('Quote', QuoteSchema, 'quotes');
+
+        const [bookings, leads, quotes] = await Promise.all([
+            Booking.find().sort({ createdAt: -1 }),
+            fetchAllLeadsAcrossCollections(),
+            Quote.find().sort({ createdAt: -1 })
+        ]);
+
+        const role = req.user.role;
+        const matchingLeads = leads.filter(l => l._id.toString() === customerId).map(l => {
+            const leadObj = l.toObject ? l.toObject() : { ...l };
+            if (role !== 'CEO') {
+                delete leadObj.vendorCost;
+                delete leadObj.margin;
+                delete leadObj.profit;
+                delete leadObj.expectedProfit;
+                delete leadObj.profitMargin;
+                delete leadObj.companyExpense;
+                delete leadObj.agentCommission;
+                delete leadObj.salary;
+                delete leadObj.vendorPayable;
+                delete leadObj.ceoOnlyNotes;
+            }
+            return leadObj;
+        });
+
+        const phone = matchingLeads[0]?.phone || matchingLeads[0]?.mobile;
+        const cleanPhone = (phone || '').replace(/\D/g, '');
+
+        const matchingQuotes = quotes.filter(q => {
+            const qLeadId = (q.leadId || q.customerId || '').toString();
+            const qPhone = (q.customerPhone || '').replace(/\D/g, '');
+            return qLeadId === customerId || (cleanPhone && qPhone === cleanPhone);
+        }).map(q => {
+            const qObj = q.toObject ? q.toObject() : { ...q };
+            if (role !== 'CEO') {
+                delete qObj.totalVendorCost;
+                delete qObj.expectedProfit;
+                delete qObj.companyMargin;
+                delete qObj.marginPercentage;
+                delete qObj.vendorCost;
+                delete qObj.vendorPayable;
+                delete qObj.ceoOnlyNotes;
+            }
+            return qObj;
+        });
+
+        const matchingBookings = bookings.filter(b => {
+            const bLeadId = (b.leadId || b.customerId || '').toString();
+            const bPhone = (b.customerDetails?.phone || b.phone || '').replace(/\D/g, '');
+            return bLeadId === customerId || (cleanPhone && bPhone === cleanPhone);
+        }).map(b => role === 'CEO' ? b : sanitizeBookingForManager(b));
+
+        const name = matchingBookings[0]?.customerDetails?.name || matchingLeads[0]?.name || matchingQuotes[0]?.customerName || 'Guest';
+        const email = matchingBookings[0]?.customerDetails?.email || matchingLeads[0]?.email || matchingQuotes[0]?.customerEmail || '—';
+        const city = matchingBookings[0]?.customerDetails?.city || matchingLeads[0]?.city || 'Varanasi';
+
+        let totalVal = 0;
+        let totalPaid = 0;
+        matchingBookings.forEach((b) => {
+            const bVal = Number(b.packageDetails?.finalCustomerPrice || b.customerPaymentSummary?.packagePrice || b.totalAmount || 0);
+            const bPaid = Number(b.customerPaymentSummary?.totalPaid !== undefined ? b.customerPaymentSummary.totalPaid : (b.advanceAmount || 0));
+            totalVal += bVal;
+            totalPaid += bPaid;
+        });
+        if (matchingBookings.length === 0 && matchingQuotes.length > 0) {
+            totalVal = Number(matchingQuotes[0].finalCustomerPrice || 0);
+        }
+
+        return res.status(200).json({
+            success: true,
+            customer: {
+                id: customerId,
+                name,
+                phone: phone || '—',
+                email,
+                city,
+                leads: matchingLeads,
+                quotes: matchingQuotes,
+                bookings: matchingBookings,
+                totalValue: totalVal,
+                totalPaid: totalPaid,
+                remainingDue: Math.max(0, totalVal - totalPaid)
+            }
+        });
+    } catch (error) {
+        console.error("❌ Fetch Single Customer Error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch customer profile." });
     }
 });
 
@@ -3801,7 +4344,15 @@ app.delete('/admin/files/:attachmentId', authenticateToken, requireRole(['CEO', 
 // Production Static SPA Serving (when dist/ directory exists)
 const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+        setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.html')) {
+                res.setHeader('Cache-Control', 'no-cache');
+            } else if (filePath.includes('/assets/')) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            }
+        }
+    }));
     app.use((req, res, next) => {
         if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/admin') && !req.path.startsWith('/health') && !req.path.startsWith('/ready') && !req.path.startsWith('/auth')) {
             return res.sendFile(path.join(distPath, 'index.html'));
@@ -3809,6 +4360,28 @@ if (fs.existsSync(distPath)) {
         next();
     });
 }
+
+// Centralized Express Error Handler
+app.use((err, req, res, next) => {
+    const statusCode = err.status || err.statusCode || 500;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Safe logging without credentials or sensitive request payload
+    console.error(`🚨 [Centralized Error Handler] ${req.method} ${req.originalUrl || req.path} -> Status ${statusCode}:`, err.message || err);
+
+    const responsePayload = {
+        success: false,
+        message: isProduction && statusCode === 500
+            ? "An unexpected internal server error occurred."
+            : (err.message || "Internal server error.")
+    };
+
+    if (!isProduction && err.stack) {
+        responsePayload.stack = err.stack;
+    }
+
+    res.status(statusCode).json(responsePayload);
+});
 
 const PORT = process.env.PORT || 5001;
 const { disconnectDatabase } = require('./config/database');
@@ -3820,7 +4393,7 @@ if (process.env.NODE_ENV !== 'test') {
         await initializeUsers();
     });
 }
-if (false && require.main === module) {
+if (require.main === module) {
     connectDatabase().then(async () => {
         await initializeUsers();
         activeHttpServer = app.listen(PORT, () => console.log(`🚀 Production Operating System active on port ${PORT}`));

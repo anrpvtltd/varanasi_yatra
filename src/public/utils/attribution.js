@@ -1,9 +1,10 @@
 /**
- * Attribution Management Utility for Varanasi Yatra
+ * Attribution Management Utility for Kashi-Vashi
  * Captures, persists (in sessionStorage), and retrieves UTM parameters and Hotel Partner QR attribution.
  */
 
 const STORAGE_KEY_PARTNER = 'vy_partner_attribution';
+const STORAGE_KEY_AREA_QR = 'vy_area_qr_attribution';
 const STORAGE_KEY_UTM = 'vy_utm_attribution';
 
 export function getUrlParams() {
@@ -65,13 +66,51 @@ export function setPartnerAttribution({ partnerId, partnerName = '', qrId = null
 }
 
 /**
- * Get the current active attribution (Partner QR or standard Website + UTMs)
+ * Persist Area QR attribution when landing on /q/:qrId
+ */
+export function setAreaQrAttribution({
+    qrId,
+    areaId = '',
+    areaName = '',
+    qrType = '',
+    placementName = '',
+    venueName = '',
+    landingPath = ''
+}) {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+
+    try {
+        const attribution = {
+            source: 'AREA_QR',
+            qrId: qrId ? String(qrId).trim().toUpperCase() : '',
+            areaId: areaId ? String(areaId).trim() : '',
+            areaName: areaName || '',
+            qrType: qrType || '',
+            placementName: placementName || '',
+            venueName: venueName || '',
+            landingPath: landingPath || window.location.pathname,
+            capturedAt: new Date().toISOString()
+        };
+        window.sessionStorage.setItem(STORAGE_KEY_AREA_QR, JSON.stringify(attribution));
+    } catch {
+        // Safe fallback
+    }
+}
+
+/**
+ * Get the current active attribution (Area QR, Partner QR, or standard Website + UTMs)
  */
 export function getAttribution() {
+    let areaQrAttribution = null;
     let partnerAttribution = null;
     let utmAttribution = null;
 
     if (typeof window !== 'undefined' && window.sessionStorage) {
+        try {
+            const rawArea = window.sessionStorage.getItem(STORAGE_KEY_AREA_QR);
+            if (rawArea) areaQrAttribution = JSON.parse(rawArea);
+        } catch {}
+
         try {
             const rawPartner = window.sessionStorage.getItem(STORAGE_KEY_PARTNER);
             if (rawPartner) partnerAttribution = JSON.parse(rawPartner);
@@ -83,19 +122,68 @@ export function getAttribution() {
         } catch {}
     }
 
-    // Default to WEBSITE if no partner attribution is active
-    const source = partnerAttribution?.source || 'WEBSITE';
-    const partnerId = partnerAttribution?.partnerId || null;
-    const partnerName = partnerAttribution?.partnerName || '';
-    const qrId = partnerAttribution?.qrId || null;
-    const landingPath = partnerAttribution?.landingPath || (typeof window !== 'undefined' ? window.location.pathname : '');
+    // Area QR takes precedence if present
+    if (areaQrAttribution?.qrId) {
+        return {
+            source: 'AREA_QR',
+            qrId: areaQrAttribution.qrId,
+            areaId: areaQrAttribution.areaId || null,
+            areaName: areaQrAttribution.areaName || '',
+            qrType: areaQrAttribution.qrType || '',
+            placementName: areaQrAttribution.placementName || '',
+            venueName: areaQrAttribution.venueName || '',
+            partnerId: null,
+            partnerName: '',
+            landingPath: areaQrAttribution.landingPath || (typeof window !== 'undefined' ? window.location.pathname : ''),
+            qrAttribution: {
+                qrId: areaQrAttribution.qrId,
+                areaId: areaQrAttribution.areaId || null,
+                areaName: areaQrAttribution.areaName || '',
+                qrType: areaQrAttribution.qrType || ''
+            },
+            utmSource: utmAttribution?.source || '',
+            utmMedium: utmAttribution?.medium || '',
+            utmCampaign: utmAttribution?.campaign || '',
+            utmTerm: utmAttribution?.term || '',
+            utmContent: utmAttribution?.content || ''
+        };
+    }
 
+    // Next check Hotel Partner QR
+    if (partnerAttribution?.partnerId) {
+        return {
+            source: 'HOTEL_QR',
+            partnerId: partnerAttribution.partnerId,
+            partnerName: partnerAttribution.partnerName || '',
+            qrId: partnerAttribution.qrId || null,
+            areaId: null,
+            areaName: '',
+            qrType: '',
+            placementName: '',
+            venueName: '',
+            landingPath: partnerAttribution.landingPath || (typeof window !== 'undefined' ? window.location.pathname : ''),
+            qrAttribution: null,
+            utmSource: utmAttribution?.source || '',
+            utmMedium: utmAttribution?.medium || '',
+            utmCampaign: utmAttribution?.campaign || '',
+            utmTerm: utmAttribution?.term || '',
+            utmContent: utmAttribution?.content || ''
+        };
+    }
+
+    // Default to WEBSITE
     return {
-        source,
-        partnerId,
-        partnerName,
-        qrId,
-        landingPath,
+        source: 'WEBSITE',
+        partnerId: null,
+        partnerName: '',
+        qrId: null,
+        areaId: null,
+        areaName: '',
+        qrType: '',
+        placementName: '',
+        venueName: '',
+        landingPath: typeof window !== 'undefined' ? window.location.pathname : '',
+        qrAttribution: null,
         utmSource: utmAttribution?.source || '',
         utmMedium: utmAttribution?.medium || '',
         utmCampaign: utmAttribution?.campaign || '',
@@ -111,6 +199,7 @@ export function clearAttribution() {
     if (typeof window !== 'undefined' && window.sessionStorage) {
         try {
             window.sessionStorage.removeItem(STORAGE_KEY_PARTNER);
+            window.sessionStorage.removeItem(STORAGE_KEY_AREA_QR);
         } catch {}
     }
 }

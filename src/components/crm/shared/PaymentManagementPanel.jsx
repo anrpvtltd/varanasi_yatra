@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { crmApi } from '../../../services/crmApi';
+import { safeDateOnly } from '../../../utils/dateUtils';
 
 export default function PaymentManagementPanel({
     booking,
@@ -135,7 +136,7 @@ export default function PaymentManagementPanel({
                     receiptNo: `REC-${(payment.paymentId || '').slice(-6) || 'VY-01'}`,
                     payment: {
                         paymentId: payment.paymentId || `PAY-${Date.now().toString().slice(-6)}`,
-                        date: payment.paymentDate || new Date().toISOString().split('T')[0],
+                        date: safeDateOnly(payment.paymentDate || new Date()),
                         bookingId: booking.bookingNumber || booking._id,
                         method: payment.paymentMethod || 'UPI',
                         customerName: booking.customerDetails?.name || booking.name || 'Valued Guest',

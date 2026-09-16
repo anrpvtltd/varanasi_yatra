@@ -6,6 +6,7 @@ export default function ManualLeadDrawer({
     manualLead,
     handleManualInputChange,
     handleManualSubmit,
+    handleClearManualDraft,
     isSavingManual,
     user
 }) {
@@ -40,6 +41,24 @@ export default function ManualLeadDrawer({
                 <form onSubmit={handleManualSubmit} className="flex-1 flex flex-col justify-between overflow-hidden">
                     {/* Scrollable Form Body */}
                     <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5">
+
+                        {Boolean(manualLead.name || manualLead.mobile) && (
+                            <div className="bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-[11px]">
+                                    <span>💾</span>
+                                    <span>Unsaved draft saved locally</span>
+                                </div>
+                                {handleClearManualDraft && (
+                                    <button
+                                        type="button"
+                                        onClick={handleClearManualDraft}
+                                        className="text-stone-500 hover:text-stone-800 text-[11px] underline cursor-pointer"
+                                    >
+                                        Clear Draft
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         <div>
                             <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">Customer Name *</label>

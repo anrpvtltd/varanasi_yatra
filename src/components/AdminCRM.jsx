@@ -24,9 +24,23 @@ import CustomerCommunicationWorkspace from './crm/communication/CustomerCommunic
 import ManagerReportsWorkspace from './crm/reports/ManagerReportsWorkspace';
 import CEOTeamWorkspace from './crm/ceo/CEOTeamWorkspace';
 import HotelPartnerWorkspace from './crm/ceo/HotelPartnerWorkspace';
+import QRNetworkWorkspace from './crm/ceo/qr/QRNetworkWorkspace';
+import TeamLeaderWorkspace from './crm/team-leader/TeamLeaderWorkspace';
+import TeamMemberWorkspace from './crm/team-member/TeamMemberWorkspace';
+import ManagerHunterProspects from './crm/manager/ManagerHunterProspects';
+import CRMErrorBoundary from './crm/shared/CRMErrorBoundary';
+import { safeDateToISOString } from '../utils/dateUtils';
+
+const AIControlCenter = React.lazy(() => import('./crm/ceo/ai/AIControlCenter'));
 
 export default function AdminCRM() {
-    const [activeNav, setActiveNav] = useState('DASHBOARD');
+    const [activeNav, setActiveNav] = useState(() => {
+        try {
+            return sessionStorage.getItem('crm_active_nav') || 'DASHBOARD';
+        } catch {
+            return 'DASHBOARD';
+        }
+    });
     const [globalSearch, setGlobalSearch] = useState('');
     const [isQuoteBuilderOpen, setIsQuoteBuilderOpen] = React.useState(false);
     const [quoteTargetLead, setQuoteTargetLead] = React.useState(null);
@@ -80,8 +94,9 @@ export default function AdminCRM() {
         handleInputChange,
         handleSaveChanges,
         handleManualInputChange,
-        handleManualSubmit
-    } = useCRMLeads(token, isAuthenticated, handleLogout);
+        handleManualSubmit,
+        handleClearManualDraft
+    } = useCRMLeads(token, isAuthenticated, handleLogout, activeNav);
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -109,7 +124,7 @@ export default function AdminCRM() {
                     id: `lead_${l._id}`,
                     title: `🔥 Hot Lead: ${l.name}`,
                     message: `Enquiry for ${l.destination || 'Varanasi'} · ${l.mobile || 'No Phone'}`,
-                    time: l.updatedAt || l.createdAt || new Date().toISOString(),
+                    time: safeDateToISOString(l.updatedAt || l.createdAt || new Date()),
                     unread: true
                 });
             } else if (l.status === 'FOLLOW_UP') {
@@ -117,7 +132,7 @@ export default function AdminCRM() {
                     id: `lead_fu_${l._id}`,
                     title: `⏰ Action Due: ${l.name}`,
                     message: `Follow-up required for ${l.name}`,
-                    time: l.updatedAt || l.createdAt || new Date().toISOString(),
+                    time: safeDateToISOString(l.updatedAt || l.createdAt || new Date()),
                     unread: false
                 });
             }
@@ -127,7 +142,7 @@ export default function AdminCRM() {
 
     // 🔄 SKELETON CRM SHELL LOADING STATE (NO BLANK SCREEN & NO LOGIN FLASH)
     if (isCheckingSession) {
-        return <CRMShellSkeleton />;
+        return <CRMShellSkeleton userRole={user?.role} />;
     }
 
     // 🔒 POLISHED SPLIT-SCREEN ANIMATED LOGIN (PART B)
@@ -137,10 +152,14 @@ export default function AdminCRM() {
 
     const handleNavSelect = (id) => {
         setActiveNav(id);
+        try {
+            sessionStorage.setItem('crm_active_nav', id);
+        } catch {}
     };
 
     const renderMainWorkspace = () => {
-        const isCEO = user?.role === 'CEO';
+        const role = (user?.role || '').toUpperCase();
+        const isCEO = role === 'CEO';
 
         if (isCEO) {
             if (activeNav === 'RESOURCES') {
@@ -193,12 +212,30 @@ export default function AdminCRM() {
                     />
                 );
             }
+            if (activeNav === 'QR_NETWORK') {
+                return (
+                    <QRNetworkWorkspace
+                        token={token}
+                        user={user}
+                    />
+                );
+            }
             if (activeNav === 'HOTEL_PARTNERS') {
                 return (
                     <HotelPartnerWorkspace
                         token={token}
                         user={user}
                     />
+                );
+            }
+            if (activeNav === 'AI_CONTROL_CENTER') {
+                return (
+                    <React.Suspense fallback={<CRMShellSkeleton />}>
+                        <AIControlCenter
+                            token={token}
+                            user={user}
+                        />
+                    </React.Suspense>
                 );
             }
             if (activeNav === 'CUSTOMERS') {
@@ -236,7 +273,65 @@ export default function AdminCRM() {
             );
         }
 
-        // Manager / Team view mapping
+        // Team Leader Workspace Branch
+        if (role === 'TEAM_LEADER') {
+            if (activeNav === 'CUSTOMERS') {
+                return (
+                    <Customer360Workspace
+                        token={token}
+                        user={user}
+                        onOpenBooking={handleOpenBooking}
+                        onOpenLead={(lead) => { setSelectedLead(lead); setProfileTab('overview'); }}
+                    />
+                );
+            }
+            if (activeNav === 'COMMUNICATIONS') {
+                return (
+                    <CustomerCommunicationWorkspace
+                        token={token}
+                        user={user}
+                        onOpenBooking={handleOpenBooking}
+                    />
+                );
+            }
+            return (
+                <TeamLeaderWorkspace
+                    token={token}
+                    user={user}
+                />
+            );
+        }
+
+        // Team Member Workspace Branch
+        if (role === 'TEAM_MEMBER') {
+            if (activeNav === 'CUSTOMERS') {
+                return (
+                    <Customer360Workspace
+                        token={token}
+                        user={user}
+                        onOpenBooking={handleOpenBooking}
+                        onOpenLead={(lead) => { setSelectedLead(lead); setProfileTab('overview'); }}
+                    />
+                );
+            }
+            if (activeNav === 'COMMUNICATIONS') {
+                return (
+                    <CustomerCommunicationWorkspace
+                        token={token}
+                        user={user}
+                        onOpenBooking={handleOpenBooking}
+                    />
+                );
+            }
+            return (
+                <TeamMemberWorkspace
+                    token={token}
+                    user={user}
+                />
+            );
+        }
+
+        // Manager / Operations view mapping
         if (activeNav === 'CUSTOMERS') {
             return (
                 <Customer360Workspace
@@ -264,6 +359,30 @@ export default function AdminCRM() {
                     token={token}
                     user={user}
                     onOpenDocumentCenter={() => setIsDocumentCenterOpen(true)}
+                />
+            );
+        }
+
+        if (activeNav === 'QR_NETWORK') {
+            return (
+                <QRNetworkWorkspace
+                    token={token}
+                    user={user}
+                />
+            );
+        }
+
+        if (activeNav === 'AI_PROSPECTS') {
+            return (
+                <ManagerHunterProspects
+                    token={token}
+                    user={user}
+                    onOpenLead={(lead) => {
+                        setSelectedLead(lead);
+                        setProfileTab('overview');
+                        setActiveNav('LEADS');
+                    }}
+                    onRefresh={handleTriggerRefresh}
                 />
             );
         }
@@ -305,20 +424,28 @@ export default function AdminCRM() {
             alerts={operationalAlerts}
             onChangePassword={() => setIsChangePasswordOpen(true)}
         >
-            {renderMainWorkspace()}
+            <CRMErrorBoundary
+                name={`${activeNav} Workspace`}
+                onReset={(newNav) => handleNavSelect(newNav || 'DASHBOARD')}
+            >
+                {renderMainWorkspace()}
+            </CRMErrorBoundary>
 
             {/* Shared Side Drawers */}
-            <LeadProfileDrawer
-                selectedLead={selectedLead}
-                setSelectedLead={setSelectedLead}
-                profileTab={profileTab}
-                setProfileTab={setProfileTab}
-                handleInputChange={handleInputChange}
-                handleSaveChanges={onSaveLeadChanges}
-                isSaving={isSaving}
-                user={user}
-                onOpenQuoteBuilder={handleOpenQuoteBuilder}
-            />
+            <CRMErrorBoundary name="Lead Profile Drawer">
+                <LeadProfileDrawer
+                    selectedLead={selectedLead}
+                    setSelectedLead={setSelectedLead}
+                    profileTab={profileTab}
+                    setProfileTab={setProfileTab}
+                    handleInputChange={handleInputChange}
+                    handleSaveChanges={onSaveLeadChanges}
+                    isSaving={isSaving}
+                    user={user}
+                    token={token}
+                    onOpenQuoteBuilder={handleOpenQuoteBuilder}
+                />
+            </CRMErrorBoundary>
 
             <ManualLeadDrawer
                 isManualOpen={isManualOpen}
@@ -326,6 +453,7 @@ export default function AdminCRM() {
                 manualLead={manualLead}
                 handleManualInputChange={handleManualInputChange}
                 handleManualSubmit={onSubmitManualLead}
+                handleClearManualDraft={handleClearManualDraft}
                 isSavingManual={isSavingManual}
                 user={user}
             />

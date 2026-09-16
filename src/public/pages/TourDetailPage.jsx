@@ -40,7 +40,7 @@ export default function TourDetailPage() {
     return (
         <>
             <SEO
-                title={`${title} | Varanasi Yatra`}
+                title={`${title} | Kashi-Vashi`}
                 description={overview}
                 pathname={`/tours/${slug}`}
                 image={image}
@@ -51,7 +51,7 @@ export default function TourDetailPage() {
                     description: overview,
                     provider: {
                         '@type': 'TravelAgency',
-                        name: 'Varanasi Yatra'
+                        name: 'Kashi-Vashi'
                     },
                     offers: startingPrice ? {
                         '@type': 'Offer',

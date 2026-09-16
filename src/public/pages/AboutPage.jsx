@@ -10,8 +10,8 @@ export default function AboutPage() {
     return (
         <>
             <SEO
-                title="About Us | Authentic Local Pilgrimage Stewardship | Varanasi Yatra"
-                description="The story of Varanasi Yatra. Founded by local Kashi residents to ensure every pilgrim and visitor experiences the sacred beauty of Varanasi with honesty, warmth, and peace of mind."
+                title="About Us | Authentic Local Pilgrimage Stewardship | Kashi-Vashi"
+                description="The story of Kashi-Vashi. Founded by local Kashi residents to ensure every pilgrim and visitor experiences the sacred beauty of Varanasi with honesty, warmth, and peace of mind."
                 pathname="/about"
             />
 
@@ -39,10 +39,10 @@ export default function AboutPage() {
 
                         <div className="space-y-4 text-xs sm:text-sm text-stone-700 leading-relaxed font-normal">
                             <p>
-                                <strong>Varanasi Yatra</strong> began with a simple, personal observation. Over the years, we watched family, friends, and pilgrims from all corners of India and the world arrive in Varanasi with hearts full of devotion, only to face confusion. Finding a clean, family-friendly hotel near the riverfront ghats, coordinating a trustworthy taxi driver, and securing a respectful temple guide often felt like an exhausting task amidst chaotic touts and commission agents.
+                                <strong>Kashi-Vashi</strong> began with a simple, personal observation. Over the years, we watched family, friends, and pilgrims from all corners of India and the world arrive in Varanasi with hearts full of devotion, only to face confusion. Finding a clean, family-friendly hotel near the riverfront ghats, coordinating a trustworthy taxi driver, and securing a respectful temple guide often felt like an exhausting task amidst chaotic touts and commission agents.
                             </p>
                             <p>
-                                We founded Varanasi Yatra to change that. As locals who grew up listening to the resonant temple bells and witnessing the morning Subah-e-Banaras aarti at Assi Ghat, we wanted to bridge this gap. Our initiative is built to replace uncertainty with warmth, authentic hospitality, and complete financial transparency.
+                                We founded Kashi-Vashi to change that. As locals who grew up listening to the resonant temple bells and witnessing the morning Subah-e-Banaras aarti at Assi Ghat, we wanted to bridge this gap. Our initiative is built to replace uncertainty with warmth, authentic hospitality, and complete financial transparency.
                             </p>
                             <p>
                                 We do not run rushed, commercialized mass tours. Instead, we coordinate custom spiritual journeys designed especially for families and senior citizens. By working directly with trusted local transport owners, verified boatmen, certified guides, and handpicked hotels, we ensure your pilgrimage is conducted with dignity, comfort, and peace of mind.
@@ -92,13 +92,13 @@ export default function AboutPage() {
                     <div className="max-w-3xl mx-auto flex flex-col md:flex-row items-center gap-8">
                         <div className="flex-shrink-0 text-center">
                             <div className="w-24 h-24 rounded-2xl bg-stone-950 border border-stone-800 shadow-md flex items-center justify-center text-amber-500 font-serif font-bold text-3xl mx-auto">
-                                VY
+                                KV
                             </div>
                             <span className="text-xs font-bold text-stone-900 uppercase tracking-wider mt-3 block">
                                 Founder Desk
                             </span>
                             <span className="text-[10px] uppercase font-bold text-amber-700 block">
-                                Varanasi Yatra
+                                Kashi-Vashi
                             </span>
                         </div>
 
@@ -108,11 +108,11 @@ export default function AboutPage() {
                                 Our goal is to make every visitor experience the spiritual beauty of Varanasi with comfort, transparency, and local guidance.
                             </p>
                             <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                                Varanasi is not just a destination; it is an emotional and spiritual awakening. However, to feel that divinity, one needs a peaceful state of mind. We started Varanasi Yatra to ensure that logistics, hotel bookings, and transport coordination are handled honestly, leaving you free to absorb the sacred energy of Kashi.
+                                Varanasi is not just a destination; it is an emotional and spiritual awakening. However, to feel that divinity, one needs a peaceful state of mind. We started Kashi-Vashi to ensure that logistics, hotel bookings, and transport coordination are handled honestly, leaving you free to absorb the sacred energy of Kashi.
                             </p>
                             <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
                                 <div>
-                                    <span className="text-xs font-bold text-stone-900 block">The Varanasi Yatra Team</span>
+                                    <span className="text-xs font-bold text-stone-900 block">The Kashi-Vashi Team</span>
                                     <span className="text-[10px] text-stone-400">Local Travel Coordinators & Pilgrimage Facilitators</span>
                                 </div>
                                 <span className="text-amber-600 text-xl font-bold">🙏</span>
@@ -137,7 +137,7 @@ export default function AboutPage() {
                             Plan My Trip
                         </Link>
                         <a
-                            href="https://wa.me/918149783494?text=Namaste%20Varanasi%20Yatra!%20I%20would%20like%20to%20plan%20my%20trip."
+                            href="https://wa.me/918149783494?text=Namaste%20Kashi-Vashi!%20I%20would%20like%20to%20plan%20my%20trip."
                             target="_blank"
                             rel="noreferrer"
                             onClick={() => trackWhatsAppClick('about_page_cta')}
@@ -154,7 +154,7 @@ export default function AboutPage() {
                         </a>
                     </div>
                     <div className="mt-4 text-[11px] text-amber-200">
-                        Follow our spiritual journey on Instagram: <a href="https://www.instagram.com/info.varanasi.yatra/" target="_blank" rel="noreferrer" className="underline font-bold text-white hover:text-amber-100">@info.varanasi.yatra</a> (BANARAS YATRA Travel & Tours)
+                        Follow our spiritual journey on Instagram: <a href="https://www.instagram.com/info.varanasi.yatra/" target="_blank" rel="noreferrer" className="underline font-bold text-white hover:text-amber-100">@info.varanasi.yatra</a> (Kashi-Vashi Travel & Tours)
                     </div>
                 </div>
             </article>

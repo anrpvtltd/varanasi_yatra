@@ -1,5 +1,5 @@
-import varanasiPkg from '../../assets/ExperienceVaranasi/KashiVT.png';
-import ayodhyaPkg from '../../assets/tour packege photo/ramJanmBhumi.png';
+import varanasiPkg from '../../assets/ExperienceVaranasi/KashiVT.avif';
+import ayodhyaPkg from '../../assets/tour packege photo/ramJanmBhumi.avif';
 import bodhgayaPkg from '../../assets/tour packege photo/BiharBuddha.png';
 import chunarPkg from '../../assets/tour packege photo/ChunarFort.png';
 import nepalPkg from '../../assets/tour packege photo/NepalTour.png';

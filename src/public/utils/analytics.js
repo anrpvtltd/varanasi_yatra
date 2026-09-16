@@ -1,5 +1,5 @@
 /**
- * Analytics Event Dispatcher Abstraction for Varanasi Yatra Public Portal
+ * Analytics Event Dispatcher Abstraction for Kashi-Vashi Public Portal
  * Dispatches custom events to window.dataLayer or external analytics providers (GA4 via VITE_GA_MEASUREMENT_ID) if configured.
  * STRICT PRIVACY: Enforces zero-PII sanitization on all outbound payloads.
  */

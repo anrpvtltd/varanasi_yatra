@@ -1,5 +1,5 @@
 /**
- * Varanasi Yatra CRM Design System Tokens
+ * Kashi-Vashi CRM Design System Tokens
  * Standardizes color palettes, typography, spacing, and status semantics across the CRM.
  */
 
